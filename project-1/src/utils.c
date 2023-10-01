@@ -5,6 +5,11 @@
 void partition_file_data(char *input_file, int n, char *blocks_folder) {
     // Hint: Use fseek() and ftell() to determine the size of the file
     FILE *fp = fopen(input_file, "r");
+    if (fp == NULL) { // error checking
+        perror("Failed to open input file.\n");
+        exit(-1);
+    }
+
     fseek(fp, 0, SEEK_END);
     long int input_file_size = ftell(fp);
 
@@ -15,27 +20,42 @@ void partition_file_data(char *input_file, int n, char *blocks_folder) {
     fseek(fp, 0, SEEK_SET);
 
     for(int i=0; i<n; i++){
-	//open new file & follow naming convention
-	char fout_name[50];
-	sprintf(fout_name, "%s/%d.txt", blocks_folder, i);
+        //open new file & follow naming convention
+        char fout_name[PATH_MAX];
+        sprintf(fout_name, "%s/%d.txt", blocks_folder, i);
 
-	//read input file
-	int fout_size = 0;
-	if(i<n-1){fout_size = output_file_size;}
-	else{fout_size = last_out_file_size;}
+        //read input file
+        int fout_size = 0;
+        if(i<n-1){fout_size = output_file_size;}
+        else{fout_size = last_out_file_size;}
 
-	char fout_contents[fout_size];
+        char fout_contents[fout_size];
+        if (fread(fout_contents, 1, fout_size, fp) < fout_size) { // error checking
+            perror("Failed to read entire block from input file.\n");
+            
+            // TODO: close files
+            
+            exit(-1);
+        }
+        // TODO: delete
+        // for (size_t blocks_read = fread(fout_contents, 1, fout_size, fp); blocks_read < fout_size; blocks_read = fread(fout_contents, 1, fout_size - blocks_read, fp)) { // error checking
+        //     perror("Failed to read entire block from input file.\n");
+        //     exit(-1);
+        // }
 
-	//needs some error checking
-	fread(fout_contents, 1, fout_size, fp);
+        //write these contents into newly opened file
+        FILE *foutp = fopen(fout_name, "w");
+        if (foutp == NULL) { // error checking
+            perror("Failed to open output file.\n");
+            exit(-1);
+        }
 
-	//write these contents into newly opened file
-	FILE *foutp = fopen(fout_name, "w");
+        if (fwrite(fout_contents, 1, fout_size, foutp) < fout_size) { // error checking
+            perror("Failed to write entire block to output file.\n");
+            exit(-1);
+        }
 
-	//needs some error checking
-	fwrite(fout_contents, 1, fout_size, foutp);
-
-	fclose(foutp);
+        fclose(foutp);
     }
 
     fclose(fp);
