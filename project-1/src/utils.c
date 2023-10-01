@@ -4,6 +4,23 @@
 // See section 3.1 of the project writeup for important implementation details
 void partition_file_data(char *input_file, int n, char *blocks_folder) {
     // Hint: Use fseek() and ftell() to determine the size of the file
+    FILE *fp = fopen(input_file, "r");
+    fseek(fp, 0, SEEK_END);
+    long int input_file_size = ftell(fp);
+
+    long int output_file_size = input_file_size/n;
+    long int last_out_file_size = input_file_size/n + input_file_size%n;
+
+    //rewind file position to the beginning
+    fseek(fp, 0, SEEK_SET);
+
+    for(int i=0; i<n; i++){
+	//open new file & follow naming convention
+	//read input file
+	//write these contents into newly opened file
+    }
+
+    fclose(input_file);
 }
 
 
