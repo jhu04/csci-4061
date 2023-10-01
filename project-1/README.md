@@ -5,9 +5,9 @@ Group member names and x500s:
 - Devajya Khanna (khann077)
 - Sameen Rahman (rahma262)
 
-The name of the CSELabs computer that you tested your code on: TODO
+The name of the CSELabs computer that you tested your code on: csel-kh1260-03
 
-Any changes you made to the Makefile or existing files that would affect grading: TODO
+Any changes you made to the Makefile or existing files that would affect grading: N/A
 
 Plan outlining individual contributions for each member of your group:
 We plan to meet on Zoom and have one person share their screen while the 

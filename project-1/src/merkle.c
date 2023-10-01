@@ -31,12 +31,12 @@ int main(int argc, char* argv[]) {
 
     // TODO: Start the recursive merkle tree computation by spawning first child process (root)
 
-/*
+
     // ##### DO NOT REMOVE #####
     #ifndef TEST_INTERMEDIATE
         // Visually display the merkle tree using the output in the hashes_folder
         print_merkle_tree(visualization_file, hashes_folder, n);
     #endif
-*/
+
     return 0;
 }
