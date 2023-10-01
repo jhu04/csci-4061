@@ -16,11 +16,29 @@ void partition_file_data(char *input_file, int n, char *blocks_folder) {
 
     for(int i=0; i<n; i++){
 	//open new file & follow naming convention
+	char fout_name[50];
+	sprintf(fout_name, "%s/%d.txt", blocks_folder, i);
+
 	//read input file
+	int fout_size = 0;
+	if(i<n-1){fout_size = output_file_size;}
+	else{fout_size = last_out_file_size;}
+
+	char fout_contents[fout_size];
+
+	//needs some error checking
+	fread(fout_contents, 1, fout_size, fp);
+
 	//write these contents into newly opened file
+	FILE *foutp = fopen(fout_name, "w");
+
+	//needs some error checking
+	fwrite(fout_contents, 1, fout_size, foutp);
+
+	fclose(foutp);
     }
 
-    fclose(input_file);
+    fclose(fp);
 }
 
 

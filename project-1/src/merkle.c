@@ -1,5 +1,5 @@
 #include "utils.h"
-#include "print_tree.h"
+//#include "print_tree.h"
 
 // ##### DO NOT MODIFY THESE VARIABLES #####
 char *blocks_folder = "output/blocks";
@@ -16,8 +16,8 @@ int main(int argc, char* argv[]) {
     }
 
     // TODO: Read in the command line arguments and validate them
-    char *input_file;
-    int n;
+    char *input_file = argv[1];
+    int n = atoi(argv[2]);
 
 
     // ##### DO NOT REMOVE #####
@@ -29,12 +29,12 @@ int main(int argc, char* argv[]) {
 
     // TODO: Start the recursive merkle tree computation by spawning first child process (root)
 
-
+/*
     // ##### DO NOT REMOVE #####
     #ifndef TEST_INTERMEDIATE
         // Visually display the merkle tree using the output in the hashes_folder
         print_merkle_tree(visualization_file, hashes_folder, n);
     #endif
-
+*/
     return 0;
 }
