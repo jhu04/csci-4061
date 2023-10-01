@@ -13,8 +13,33 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
+    char* blocks_folder = argv[1];
+    char* hashes_folder = argv[2];
+    int N = atoi(argv[3]); // number of blocks
+    int cur_id = atoi(argv[4]);
+    
     // TODO: If the current process is a leaf process, read in the associated block file 
     // and compute the hash of the block.
+
+    if(cur_id >= N-1 && cur_id <= 2*N-2){
+        // Open file to read leaf data from
+        char block_name[PATH_MAX];
+        sprintf(block_name, "%s/%d.txt", blocks_folder, cur_id-N+1);
+
+        // Compute hash and store it in a buffer
+        char hash_buf[SHA256_BLOCK_SIZE];
+        hash_data_block(hash_buf, block_name);
+
+        // Open file to write hash into
+        char hash_name[PATH_MAX];
+        sprintf(hash_name, "%s/%d.txt", hashes_folder, cur_id);
+
+        // Write computed hash into the file
+        FILE* fp = fopen(hash_name, "w");
+        fwrite(hash_buf, 1, SHA256_BLOCK_SIZE, fp);     
+    }
+
+
 
     // TODO: If the current process is not a leaf process, spawn two child processes using  
     // exec() and ./child_process. 

@@ -19,6 +19,8 @@ int main(int argc, char* argv[]) {
     char *input_file = argv[1];
     int n = atoi(argv[2]);
 
+    //TOD0: error check for N = a power of 2
+
 
     // ##### DO NOT REMOVE #####
     setup_output_directory(blocks_folder, hashes_folder);
