@@ -1,5 +1,5 @@
 #include "utils.h"
-//#include "print_tree.h"
+#include "print_tree.h"
 
 // ##### DO NOT MODIFY THESE VARIABLES #####
 char *blocks_folder = "output/blocks";
@@ -20,7 +20,10 @@ int main(int argc, char* argv[]) {
     int n = atoi(argv[2]);
 
     //TOD0: error check for N = a power of 2
-
+    if ((n & (n - 1)) != 0) {
+        perror("N is not a power of 2.\n");
+        exit(-1);
+    }
 
     // ##### DO NOT REMOVE #####
     setup_output_directory(blocks_folder, hashes_folder);
