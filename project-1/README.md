@@ -5,7 +5,7 @@ Group member names and x500s:
 - Devajya Khanna (khann077)
 - Sameen Rahman (rahma262)
 
-The name of the CSELabs computer that you tested your code on: csel-kh1260-03
+The name of the CSELabs computer that you tested your code on: csel-kh1260-03.cselabs.umn.edu
 
 Any changes you made to the Makefile or existing files that would affect grading: N/A
 
