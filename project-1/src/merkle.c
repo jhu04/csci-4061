@@ -20,6 +20,7 @@ int main(int argc, char* argv[]) {
     int n = atoi(argv[2]);
 
     //TOD0: error check for N = a power of 2
+    // Can also be done with n & -n != 0
     if ((n & (n - 1)) != 0) {
         perror("N is not a power of 2.\n");
         exit(-1);
