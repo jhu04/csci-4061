@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <sys/wait.h>
 #include <stdlib.h>
+#include <string.h>
 
 // Length of longest possible file path that we will test
 #define PATH_MAX 1024

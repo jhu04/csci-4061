@@ -29,28 +29,29 @@ void partition_file_data(char *input_file, int n, char *blocks_folder) {
         if(i<n-1){fout_size = output_file_size;}
         else{fout_size = last_out_file_size;}
 
-        char fout_contents[fout_size];
-        if (fread(fout_contents, 1, fout_size, fp) < fout_size) { // error checking
-            perror("Failed to read entire block from input file.\n");
-            
-            // TODO: close files
-            
-            exit(-1);
+        int fout_contents_size = fout_size + 1; // add 1 to account for null terminator
+        char fout_contents[fout_contents_size];
+        memset(fout_contents, '\0', fout_contents_size);
+
+        char buf[fout_contents_size];
+        memset(buf, '\0', fout_contents_size);
+        for (size_t blocks_read = fread(buf, 1, fout_size, fp), total_blocks_read = blocks_read; blocks_read != 0; blocks_read = fread(buf, 1, fout_size - total_blocks_read, fp), total_blocks_read += blocks_read) { // error checking
+            strcat(fout_contents, buf);
         }
-        // TODO: delete
-        // for (size_t blocks_read = fread(fout_contents, 1, fout_size, fp); blocks_read < fout_size; blocks_read = fread(fout_contents, 1, fout_size - blocks_read, fp)) { // error checking
-        //     perror("Failed to read entire block from input file.\n");
-        //     exit(-1);
-        // }
 
         //write these contents into newly opened file
         FILE *foutp = fopen(fout_name, "w");
         if (foutp == NULL) { // error checking
+            fclose(fp);
+
             perror("Failed to open output file.\n");
             exit(-1);
         }
 
         if (fwrite(fout_contents, 1, fout_size, foutp) < fout_size) { // error checking
+            fclose(foutp);
+            fclose(fp);
+            
             perror("Failed to write entire block to output file.\n");
             exit(-1);
         }
