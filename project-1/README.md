@@ -26,6 +26,7 @@ Generally, the above process will result in the following assignments.
 - Code Review: Jeffrey Hu, Devajya Khanna, Sameen Rahman
 
 Plan on how you are going to implement the process tree component of creating the Merkle tree (high-level pseudocode would be acceptable/preferred for this part):
+```
 main:
     if process is leaf:
         open corresponding block file
@@ -77,3 +78,4 @@ main:
         
         close all files
         exit
+```
