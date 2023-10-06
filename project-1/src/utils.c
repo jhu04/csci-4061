@@ -31,26 +31,25 @@ void partition_file_data(char *input_file, int n, char *blocks_folder) {
 
         char fout_contents[fout_size];
         if (fread(fout_contents, 1, fout_size, fp) < fout_size) { // error checking
+            fclose(fp);
+            
             perror("Failed to read entire block from input file.\n");
-            
-            // TODO: close files
-            
             exit(-1);
         }
-        // TODO: delete
-        // for (size_t blocks_read = fread(fout_contents, 1, fout_size, fp); blocks_read < fout_size; blocks_read = fread(fout_contents, 1, fout_size - blocks_read, fp)) { // error checking
-        //     perror("Failed to read entire block from input file.\n");
-        //     exit(-1);
-        // }
 
         //write these contents into newly opened file
         FILE *foutp = fopen(fout_name, "w");
         if (foutp == NULL) { // error checking
+            fclose(fp);
+
             perror("Failed to open output file.\n");
             exit(-1);
         }
 
         if (fwrite(fout_contents, 1, fout_size, foutp) < fout_size) { // error checking
+            fclose(foutp);
+            fclose(fp);
+            
             perror("Failed to write entire block to output file.\n");
             exit(-1);
         }
