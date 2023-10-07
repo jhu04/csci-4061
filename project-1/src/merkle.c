@@ -41,6 +41,8 @@ int main(int argc, char* argv[]) {
         execl("./child_process", blocks_folder, hashes_folder, n, 0, NULL);
         perror("Child process failed to execute");
         exit(-1);
+    } else {
+        wait(NULL);
     }
 
     // ##### DO NOT REMOVE #####
