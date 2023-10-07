@@ -14,15 +14,15 @@ void partition_file_data(char *input_file, int n, char *blocks_folder) {
 
     //Error check fseek
     if (fseek(fp, 0, SEEK_END) == -1){
-	perror("Failed to move file offset to the end");
-	exit(-1);
+        perror("Failed to move file offset to the end");
+        exit(-1);
     }
     long int input_file_size = ftell(fp);
 
     //Error check ftell
     if(input_file_size == -1){
-	perror("Failed to determine position of file offset");
-	exit(-1);
+        perror("Failed to determine position of file offset");
+        exit(-1);
     }
 
     long int output_file_size = input_file_size/n;
@@ -30,28 +30,28 @@ void partition_file_data(char *input_file, int n, char *blocks_folder) {
 
     //Error check fseek
     if (fseek(fp, 0, SEEK_SET) == -1){
-	perror("Failed to move file offset to the beginning");
-	exit(-1);
+        perror("Failed to move file offset to the beginning");
+        exit(-1);
     }
 
     for(int i=0; i<n; i++){
         //open new file & follow naming convention
         char fout_name[PATH_MAX];
 
-	//Ask TA LOL
+        //TODO: Ask TA LOL
         sprintf(fout_name, "%s/%d.txt", blocks_folder, i);
 
         //read input file
         int fout_size = 0;
         if(i<n-1){
-	    fout_size = output_file_size;
-	}else{
-	    fout_size = last_out_file_size;
-	}
+        fout_size = output_file_size;
+        }else{
+            fout_size = last_out_file_size;
+        }
 
         char fout_contents[fout_size];
         if (fread(fout_contents, 1, fout_size, fp) < fout_size) { // error checking
-            fclose(fp); //does this matter?
+            fclose(fp); //TODO: does this matter?
 
             perror("Failed to read entire block from input file.\n");
             exit(-1);
@@ -74,15 +74,15 @@ void partition_file_data(char *input_file, int n, char *blocks_folder) {
             exit(-1);
         }
 
-	if(fclose(foutp) != 0){
-	    perror("Failed to close output file");
-	    exit(-1);
-	}
+        if(fclose(foutp) != 0){
+            perror("Failed to close output file");
+            exit(-1);
+        }
     }
 
     if(fclose(fp) != 0){
-	perror("Failed to close output file");
-	exit(-1);
+        perror("Failed to close output file");
+        exit(-1);
     }
 }
 
