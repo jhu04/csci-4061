@@ -35,8 +35,11 @@ int main(int argc, char* argv[]) {
     // TODO: Start the recursive merkle tree computation by spawning first child process (root)
     pid_t pid = fork();
 
-    if(pid == 0){
-	execl("./child_process", blocks_folder, hashes_folder, n, 0);
+    if(pid == -1){
+	perror("Failed to fork for root");
+    }else if(pid == 0){
+	execl("./child_process", blocks_folder, hashes_folder, n, 0, NULL);
+	perror("Child process failed to execute");
 	exit(-1);
     }
 

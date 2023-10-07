@@ -6,6 +6,7 @@
 #include "hash.h"
 
 #define PATH_MAX 1024
+#define ERR_MESS 2048
 
 int main(int argc, char* argv[]) {
     if (argc != 5) {
@@ -37,6 +38,13 @@ int main(int argc, char* argv[]) {
         // Write computed hash into the file
 	//TODO: Error check on fopen & fwrite
         FILE* fp = fopen(hash_name, "w");
+	if(fp == NULL){
+	    char err_message[ERR_MESS];
+	    sprintf(err_message, "Failed to open file: %s", hash_name);
+	    perror(err_message);
+	}
+
+	
         fwrite(hash_buf, 1, SHA256_BLOCK_SIZE, fp);     
     }
     // TODO: If the current process is not a leaf process, spawn two child processes using  
@@ -46,8 +54,10 @@ int main(int argc, char* argv[]) {
         for(int i=0; i<2; i++){
             pid = fork();
             // TODO: Restart fork on error
+	    //while( (pid=fork()) == -1); --> ask TA
             if(pid == -1){
-                //
+                perror("Failed to fork a child process");
+		exit(-1);
             }
             if(pid == 0){
                 char child_id[5];
@@ -60,6 +70,11 @@ int main(int argc, char* argv[]) {
         for(int j=0; j<2; j++){
             //TODO: Error Checking
             int ret = wait(NULL);
+	    if(ret == -1){
+		char waiting_failed[ERR_MESS];
+		sprintf(waiting_failed, "Parent %d failed to wait for child", cur_id);
+		perror(waiting_failed);
+	    }
         }
 
         // TODO: Retrieve the two hashes from the two child processes from output/hashes/
@@ -69,9 +84,16 @@ int main(int argc, char* argv[]) {
 
 	//Error checking needed
         FILE* child1_fp = fopen(child1_name, "r");
+
+        if(child1_fp == NULL){
+            char failed_to_open_child1[ERR_MESS];
+            sprintf(failed_to_open_child1, "Failed to open %s", child1_name);
+            perror(failed_to_open_child1);
+        }
+
         char hash1[SHA256_BLOCK_SIZE];
         //TODO : Error Checking
-        fread(child1_fp, sizeof(char), SHA256_BLOCK_SIZE, hash1);
+        fread(hash1, sizeof(char), SHA256_BLOCK_SIZE, child1_fp);
 
 	fclose(child1_fp);
 
@@ -80,9 +102,16 @@ int main(int argc, char* argv[]) {
 
 	//TODO: Error checking
         FILE* child2_fp = fopen(child2_name, "r");
+
+        if(child2_fp == NULL){
+            char failed_to_open_child2[ERR_MESS];
+            sprintf(failed_to_open_child2, "Failed to open %s", child2_name);
+            perror(failed_to_open_child2);
+        }
+
         char hash2[SHA256_BLOCK_SIZE];
         //TODO : Error Checking
-        fread(child2_fp, sizeof(char), SHA256_BLOCK_SIZE, hash2);
+        fread(hash2, sizeof(char), SHA256_BLOCK_SIZE, child2_fp);
 
 	fclose(child2_fp);
 
@@ -94,6 +123,13 @@ int main(int argc, char* argv[]) {
 
 	//TODO: For both fopen & fwrite: error check
 	FILE *parent_p = fopen(parent_name, "w");
+
+	if(parent_p == NULL){
+	    char failed_to_open_parent[ERR_MESS];
+	    sprintf(failed_to_open_parent, "Failed to open %s", parent_name);
+	    perror(failed_to_open_parent);
+	}
+
 	fwrite(parent_hash, sizeof(char), SHA256_BLOCK_SIZE, parent_p);
 
 	//Error check needed ??? ask TA
