@@ -44,7 +44,7 @@ void partition_file_data(char *input_file, int n, char *blocks_folder) {
         //read input file
         int fout_size = 0;
         if(i<n-1){
-        fout_size = output_file_size;
+            fout_size = output_file_size;
         }else{
             fout_size = last_out_file_size;
         }
