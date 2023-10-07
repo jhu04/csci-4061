@@ -1,4 +1,4 @@
-   #include "utils.h"
+#include "utils.h"
 #include "print_tree.h"
 
 // ##### DO NOT MODIFY THESE VARIABLES #####
@@ -33,7 +33,12 @@ int main(int argc, char* argv[]) {
 
 
     // TODO: Start the recursive merkle tree computation by spawning first child process (root)
+    pid_t pid = fork();
 
+    if(pid == 0){
+	execl("./child_process", blocks_folder, hashes_folder, n, 0);
+	exit(-1);
+    }
 
     // ##### DO NOT REMOVE #####
     #ifndef TEST_INTERMEDIATE

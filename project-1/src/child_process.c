@@ -35,6 +35,7 @@ int main(int argc, char* argv[]) {
         sprintf(hash_name, "%s/%d.txt", hashes_folder, cur_id);
 
         // Write computed hash into the file
+	//TODO: Error check on fopen & fwrite
         FILE* fp = fopen(hash_name, "w");
         fwrite(hash_buf, 1, SHA256_BLOCK_SIZE, fp);     
     }
@@ -51,7 +52,7 @@ int main(int argc, char* argv[]) {
             if(pid == 0){
                 char child_id[5];
                 sprintf(child_id, "%d", 2*cur_id+i+1);
-                execl("./child_process", blocks_folder, hashes_folder, N, child_id);
+                execl("./child_process", blocks_folder, hashes_folder, N, child_id, NULL);
                 exit(-1);
             }
         }
@@ -64,19 +65,39 @@ int main(int argc, char* argv[]) {
         // TODO: Retrieve the two hashes from the two child processes from output/hashes/
         // and compute and output the hash of the concatenation of the two hashes.
         char child1_name[PATH_MAX];
-        sprintf(child1_name, "%d.out", 2*cur_id+1);
-        FILE* child1_fp = fopen("output/hashes/%s", child1_name, "r");
+        sprintf(child1_name, "%s/%d.out", hashes_folder, 2*cur_id+1);
+
+	//Error checking needed
+        FILE* child1_fp = fopen(child1_name, "r");
         char hash1[SHA256_BLOCK_SIZE];
         //TODO : Error Checking
         fread(child1_fp, sizeof(char), SHA256_BLOCK_SIZE, hash1);
 
+	fclose(child1_fp);
+
         char child2_name[PATH_MAX];
-        sprintf(child2_name, "%d.out", 2*cur_id+2);
-        FILE* child2_fp = fopen("output/hashes/%s", child2_name, "r");
+        sprintf(child2_name, "%s/%d.out", hashes_folder, 2*cur_id+2);
+
+	//TODO: Error checking
+        FILE* child2_fp = fopen(child2_name, "r");
         char hash2[SHA256_BLOCK_SIZE];
         //TODO : Error Checking
         fread(child2_fp, sizeof(char), SHA256_BLOCK_SIZE, hash2);
 
-    } 
+	fclose(child2_fp);
+
+	char parent_hash[SHA256_BLOCK_SIZE];
+	compute_dual_hash(parent_hash, hash1, hash2);
+
+	char parent_name[PATH_MAX];
+        sprintf(parent_name, "%s/%d.out", hashes_folder, cur_id);
+
+	//TODO: For both fopen & fwrite: error check
+	FILE *parent_p = fopen(parent_name, "w");
+	fwrite(parent_hash, sizeof(char), SHA256_BLOCK_SIZE, parent_p);
+
+	//Error check needed ??? ask TA
+	fclose(parent_p);
+    }
 }
 
