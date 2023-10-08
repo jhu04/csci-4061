@@ -16,7 +16,8 @@ int main(int argc, char* argv[]) {
 
     char* blocks_folder = argv[1];
     char* hashes_folder = argv[2];
-    int N = atoi(argv[3]); // number of blocks
+    char *N_string = argv[3];
+    int N = atoi(N_string); // number of blocks
     int cur_id = atoi(argv[4]);
     
     // TODO: If the current process is a leaf process, read in the associated block file 
@@ -33,7 +34,7 @@ int main(int argc, char* argv[]) {
 
         // Open file to write hash into
         char hash_name[PATH_MAX];
-        sprintf(hash_name, "%s/%d.txt", hashes_folder, cur_id);
+        sprintf(hash_name, "%s/%d.out", hashes_folder, cur_id);
 
         // Write computed hash into the file
         //TODO: Error check on fopen & fwrite
@@ -57,24 +58,27 @@ int main(int argc, char* argv[]) {
             if(pid == -1){
                 perror("Failed to fork a child process");
                 exit(-1);
-            }
-            if(pid == 0){
+            }else if(pid == 0){
                 char child_id[5];
                 sprintf(child_id, "%d", 2*cur_id+i+1);
-                execl("./child_process", blocks_folder, hashes_folder, N, child_id, NULL);
+                
+                execl("./child_process", "./child_process", blocks_folder, hashes_folder, N_string, child_id, NULL);
+                // TODO: perror
                 exit(-1);
+            } else {
+                wait(NULL);
             }
         }
         // TODO: Wait for the two child processes to finish 
-        for(int j=0; j<2; j++){
-            //TODO: Error Checking
-            int ret = wait(NULL);
-            if(ret == -1){
-                char waiting_failed[ERR_MESS];
-                sprintf(waiting_failed, "Parent %d failed to wait for child", cur_id);
-                perror(waiting_failed);
-            }
-        }
+        // for(int j=0; j<2; j++){
+        //     //TODO: Error Checking
+        //     int ret = wait(NULL);
+        //     if(ret == -1){
+        //         char waiting_failed[ERR_MESS];
+        //         sprintf(waiting_failed, "Parent %d failed to wait for child", cur_id);
+        //         perror(waiting_failed);
+        //     }
+        // }
 
         // TODO: Retrieve the two hashes from the two child processes from output/hashes/
         // and compute and output the hash of the concatenation of the two hashes.
