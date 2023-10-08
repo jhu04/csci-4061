@@ -29,7 +29,7 @@ int main(int argc, char* argv[]) {
         sprintf(block_name, "%s/%d.txt", blocks_folder, cur_id-N+1);
 
         // Compute hash and store it in a buffer
-        char hash_buf[SHA256_BLOCK_SIZE];
+        char hash_buf[2*SHA256_BLOCK_SIZE+1];
         hash_data_block(hash_buf, block_name);
 
         // Open file to write hash into
@@ -45,7 +45,7 @@ int main(int argc, char* argv[]) {
             perror(err_message);
         }
 
-        fwrite(hash_buf, 1, SHA256_BLOCK_SIZE, fp);     
+        fwrite(hash_buf, 1, 2*SHA256_BLOCK_SIZE+1, fp);     
     }
     // TODO: If the current process is not a leaf process, spawn two child processes using  
     // exec() and ./child_process. 
@@ -62,7 +62,7 @@ int main(int argc, char* argv[]) {
                 char child_id[5];
                 sprintf(child_id, "%d", 2*cur_id+i+1);
                 
-                execl("./child_process", "./child_process", blocks_folder, hashes_folder, N_string, child_id, NULL);
+                execl("child_process", "./child_process", blocks_folder, hashes_folder, N_string, child_id, NULL);
                 // TODO: perror
                 exit(-1);
             } else {
@@ -94,9 +94,9 @@ int main(int argc, char* argv[]) {
             perror(failed_to_open_child1);
         }
 
-        char hash1[SHA256_BLOCK_SIZE];
+        char hash1[2*SHA256_BLOCK_SIZE+1];
         //TODO : Error Checking
-        fread(hash1, sizeof(char), SHA256_BLOCK_SIZE, child1_fp);
+        fread(hash1, sizeof(char), 2*SHA256_BLOCK_SIZE+1, child1_fp);
 
         fclose(child1_fp);
 
@@ -112,13 +112,13 @@ int main(int argc, char* argv[]) {
             perror(failed_to_open_child2);
         }
 
-        char hash2[SHA256_BLOCK_SIZE];
+        char hash2[2*SHA256_BLOCK_SIZE+1];
         //TODO : Error Checking
-        fread(hash2, sizeof(char), SHA256_BLOCK_SIZE, child2_fp);
+        fread(hash2, sizeof(char), 2*SHA256_BLOCK_SIZE+1, child2_fp);
 
         fclose(child2_fp);
 
-        char parent_hash[SHA256_BLOCK_SIZE];
+        char parent_hash[2*SHA256_BLOCK_SIZE+1];
         compute_dual_hash(parent_hash, hash1, hash2);
 
         char parent_name[PATH_MAX];
@@ -133,7 +133,7 @@ int main(int argc, char* argv[]) {
             perror(failed_to_open_parent);
         }
 
-        fwrite(parent_hash, sizeof(char), SHA256_BLOCK_SIZE, parent_p);
+        fwrite(parent_hash, sizeof(char), 2*SHA256_BLOCK_SIZE+1, parent_p);
 
         //Error check needed ??? ask TA
         fclose(parent_p);

@@ -37,15 +37,18 @@ int main(int argc, char* argv[]) {
 
     if(pid == -1){
         perror("Failed to fork for root");
-    }else if(pid != 0){
+    }else if(pid == 0){
         char n_string[5]; // TODO: store 5 in constant
         sprintf(n_string, "%d", n);
 
-        execl("./child_process", "./child_process", blocks_folder, hashes_folder, n_string, "0", NULL);
+        execl("child_process", "./child_process", blocks_folder, hashes_folder, n_string, "0", NULL);
         perror("Child process failed to execute");
         exit(-1);
     } else {
-        wait(NULL);
+        if(wait(NULL) == -1){
+	    perror("Merkle tree process failed to wait for root process");
+	    exit(-1);
+	}
     }
 
     // ##### DO NOT REMOVE #####
