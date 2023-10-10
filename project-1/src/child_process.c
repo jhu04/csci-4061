@@ -21,7 +21,7 @@ int main(int argc, char* argv[]) {
     int N = atoi(N_string); // number of blocks
     int cur_id = atoi(argv[4]);
     
-    // TODO: If the current process is a leaf process, read in the associated block file 
+    // If the current process is a leaf process, read in the associated block file 
     // and compute the hash of the block.
 
     if(cur_id >= N-1 && cur_id <= 2*N-2){
@@ -55,7 +55,7 @@ int main(int argc, char* argv[]) {
 
         fclose(fp);
     }
-    // TODO: If the current process is not a leaf process, spawn two child processes using  
+    // If the current process is not a leaf process, spawn two child processes using  
     // exec() and ./child_process. 
     else{
         pid_t pid;
@@ -74,21 +74,11 @@ int main(int argc, char* argv[]) {
                 execl("child_process", "./child_process", blocks_folder, hashes_folder, N_string, child_id, NULL);
                 perror("Child process failed to execute into ./child_process");
                 exit(-1);
-            } else {
-                //As the parent, wait for children to complete
-                wait(NULL);
             }
         }
-        // TODO: Wait for the two child processes to finish 
-        // for(int j=0; j<2; j++){
-        //     //TODO: Error Checking
-        //     int ret = wait(NULL);
-        //     if(ret == -1){
-        //         char waiting_failed[ERR_MESS];
-        //         sprintf(waiting_failed, "Parent %d failed to wait for child", cur_id);
-        //         perror(waiting_failed);
-        //     }
-        // }
+
+        // wait for all children
+        while (wait(NULL) > 0);
 
         // Retrieve the two hashes from the two child processes from output/hashes/
         // and compute and output the hash of the concatenation of the two hashes.
@@ -160,6 +150,7 @@ int main(int argc, char* argv[]) {
             char failed_to_open_parent[ERR_MESS];
             sprintf(failed_to_open_parent, "Failed to open %s", parent_name);
             perror(failed_to_open_parent);
+            exit(-1);
         }
 
         //Write parent hash into the parent hash file

@@ -8,7 +8,7 @@ void partition_file_data(char *input_file, int n, char *blocks_folder) {
 
     //Error check fopen
     if (fp == NULL) {
-        perror("Failed to open input file.\n");
+        perror("Failed to open input file");
         exit(-1);
     }
 
