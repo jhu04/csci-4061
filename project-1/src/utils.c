@@ -38,7 +38,6 @@ void partition_file_data(char *input_file, int n, char *blocks_folder) {
         //open new file & follow naming convention
         char fout_name[PATH_MAX];
 
-        //TODO: Ask TA LOL
         sprintf(fout_name, "%s/%d.txt", blocks_folder, i);
 
         //read input file

@@ -1,6 +1,8 @@
 #include "utils.h"
 #include "print_tree.h"
 
+#define N_LEN_MAX 5
+
 // ##### DO NOT MODIFY THESE VARIABLES #####
 char *blocks_folder = "output/blocks";
 char *hashes_folder = "output/hashes";
@@ -36,15 +38,19 @@ int main(int argc, char* argv[]) {
     pid_t pid = fork();
 
     if(pid == -1){
+	//error check forking
         perror("Failed to fork for root");
+
     }else if(pid == 0){
-        char n_string[5]; // TODO: store 5 in constant
+	//spawn child process representing the root of the process tree
+        char n_string[N_LEN_MAX];
         sprintf(n_string, "%d", n);
 
         execl("child_process", "./child_process", blocks_folder, hashes_folder, n_string, "0", NULL);
         perror("Child process failed to execute");
         exit(-1);
     } else {
+	//The parent process: wait for the child process (process tree) to finish
         if(wait(NULL) == -1){
 	    perror("Merkle tree process failed to wait for root process");
 	    exit(-1);
