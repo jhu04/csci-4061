@@ -45,7 +45,7 @@ nonleaf_process:
     Create array read_ends of size MAX_ENTRIES = 10
     Let i = 0
     
-    while there are still entries in directory:
+    While there are still entries in directory:
         Create a pipe
         
         Fork
@@ -75,6 +75,25 @@ nonleaf_process:
     // Waiting
     While there are still children left, wait
 
+    // Cleanup
+    Free Malloc'd buffer(s)
+
 leaf_process:
+    Parse file_path, pip_write_end from arguments
+    hash = compute_hash(file_path)
+    output_string = "<file_path>|<hash_value>"
+
+    If pipe_write_end is 0: // Intermediate_submission
+        file_name = extract_filename(file_path)
+        root_directory = extract_root_directory(file_path)
+        output_file_path = concatenate root directory onto "output/inter_submission/"
+        Create and write output_string to file "output_file_path/file_name"
+        Close file
+        Free the string returned from extract_root_directory()
+    
+    Else : // Final Submission
+        Write output_string to pipe_write_end
+        Close pipe
+
     
 ```
