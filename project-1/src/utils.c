@@ -8,7 +8,7 @@ void partition_file_data(char *input_file, int n, char *blocks_folder) {
 
     //Error check fopen
     if (fp == NULL) {
-        perror("Failed to open input file.\n");
+        perror("Failed to open input file");
         exit(-1);
     }
 
@@ -38,7 +38,6 @@ void partition_file_data(char *input_file, int n, char *blocks_folder) {
         //open new file & follow naming convention
         char fout_name[PATH_MAX];
 
-        //TODO: Ask TA LOL
         sprintf(fout_name, "%s/%d.txt", blocks_folder, i);
 
         //read input file
@@ -50,8 +49,8 @@ void partition_file_data(char *input_file, int n, char *blocks_folder) {
         }
 
         char fout_contents[fout_size];
-        if (fread(fout_contents, 1, fout_size, fp) < fout_size) { // error checking
-            fclose(fp); //TODO: does this matter?
+        if (fread(fout_contents, sizeof(char), fout_size, fp) < fout_size) { // error checking
+            fclose(fp);
 
             perror("Failed to read entire block from input file.\n");
             exit(-1);
@@ -66,7 +65,7 @@ void partition_file_data(char *input_file, int n, char *blocks_folder) {
             exit(-1);
         }
 
-        if (fwrite(fout_contents, 1, fout_size, foutp) < fout_size) { // error checking
+        if (fwrite(fout_contents, sizeof(char), fout_size, foutp) < fout_size) { // error checking
             fclose(foutp);
             fclose(fp);
 
