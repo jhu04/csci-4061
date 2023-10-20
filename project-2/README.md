@@ -7,7 +7,7 @@ Group member names and x500s:
 
 The name of the CSELabs computer that you tested your code on: csel-kh1250-06.cselabs.umn.edu
 
-Any changes you made to the Makefile or existing files that would affect grading: Manually added output/ directory while testing, though this directory is not present in our submission.
+Any changes you made to the Makefile or existing files that would affect grading: Manually added output/ directory while testing, though this directory is not present in our submission. Note that `make inter` removes symbolic links in `root_directories/` by default, so our submission's `root_directories/` files may be different (in terms of links) from the original template's files.
 
 Plan outlining individual contributions for each member of your group:
 We plan to meet on Zoom and have one person share their screen while the
