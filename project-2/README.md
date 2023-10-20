@@ -46,6 +46,8 @@ nonleaf_process:
     Let i = 0
     
     While there are still entries in directory:
+        Check for directory entry i s. and ..
+        
         Create a pipe
         
         Fork
