@@ -39,11 +39,9 @@ int main(int argc, char* argv[]) {
         //TODO(overview): create a file in output_file_folder("output/inter_submission/root*") and write the constructed string to the file
         //TODO(step1): extract the file_name from file_path using extract_filename() in utils.c
         char *file_name = extract_filename(file_path);
-        //printf("Filename: %s\n", file_name);
 
         //TODO(step2): extract the root directory(e.g. root1 or root2 or root3) from file_path using extract_root_directory() in utils.c
         char *root_dir = extract_root_directory(file_path);
-        //printf("Rootdir: %s\n", root_dir);
 
         //TODO(step3): get the location of the new file (e.g. "output/inter_submission/root1" or "output/inter_submission/root2" or "output/inter_submission/root3")
         char location[PATH_MAX];
@@ -58,7 +56,7 @@ int main(int argc, char* argv[]) {
             perror("Failed to open file");
             exit(-1);
         }
-        
+
         fwrite(to_write, sizeof(char), strlen(to_write), fp); // TODO: error handling
         fclose(fp);
 
