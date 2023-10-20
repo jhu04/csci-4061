@@ -57,7 +57,14 @@ int main(int argc, char* argv[]) {
             exit(-1);
         }
 
-        fwrite(to_write, sizeof(char), strlen(to_write), fp); // TODO: error handling
+        size_t strlen_to_write = strlen(to_write);
+        if (fwrite(to_write, sizeof(char), strlen_to_write, fp) < strlen_to_write) {
+            fclose(fp);
+
+            perror("Failed to fully write to file");
+            exit(-1);
+        }
+
         fclose(fp);
 
         //TODO(step5): free any arrays that are allocated using malloc!! Free the string returned from extract_root_directory()!! It is allocated using malloc in extract_root_directory()
