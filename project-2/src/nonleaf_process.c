@@ -21,8 +21,8 @@ int main(int argc, char* argv[]) {
     int pipe_write_end = atoi(argv[2]);
 
     //TODO(step2): malloc buffer for gathering all data transferred from child process as in root_process.c
-    char *sub_filepath_hashvalue = (char *)malloc((sizeof(char)) * BUFFER_SIZE);
-    memset(sub_filepath_hashvalue, 0, sizeof(sub_filepath_hashvalue));
+    char *sub_filepath_hashvalue = (char *) malloc(BUFFER_SIZE * sizeof(char)); // TODO: use 4098 (in root_process.c) for BUFFER_SIZE?
+    memset(sub_filepath_hashvalue, '\0', BUFFER_SIZE * sizeof(char));
 
     //TODO(step3): open directory
     DIR *current_directory = opendir(dir_path);
@@ -33,12 +33,11 @@ int main(int argc, char* argv[]) {
 
     //TODO(step4): traverse directory and fork child process
     // Hints: Maintain an array to keep track of each read end pipe of child process
-    int pipe_write_ends_array[10]; // Note : Chosen 10 since max number of file sin assumption is 10
-    int pipe_read_ends_array[10];
+    int pipe_read_ends_array[10]; // Note : Chosen 10 since max number of file sin assumption is 10
 
     struct dirent *dir_entry;
 
-    int i = 0;
+    int pipe_read_ends_array_size = 0;
     while ((dir_entry = readdir(current_directory))!=NULL){
         char *entry_name = dir_entry->d_name;
         if(strcmp(entry_name, ".") == 0 || strcmp(entry_name, "..") == 0){
@@ -51,30 +50,25 @@ int main(int argc, char* argv[]) {
         char location[PATH_MAX];
 
         int ret_id = fork();
-        pipe_read_ends_array[i]  = fd[0];
-        pipe_write_ends_array[i] = fd[1];
+        pipe_read_ends_array[pipe_read_ends_array_size]  = fd[0];
 
-        if(ret_id != 0){
+        if(ret_id == 0){
             close(fd[0]);
+
+            // TODO: error handling up here?
+
+            memset(location, '\0', PATH_MAX);
+            strcpy(location, dir_path);
+            strcat(location, "/");
+            strcat(location, dir_entry->d_name); // TODO : Do we need the `/ ` in /nonleaf_proc
+
+            char fd_name[FD_MAX];
+            memset(fd_name, '\0', FD_MAX);
+            sprintf(fd_name, "%d", fd[1]);
+
             if(dir_entry->d_type == DT_DIR){
-                memset(location, '\0', PATH_MAX);
-                strcpy(location, dir_path);
-                strcat(location, "/");
-                strcat(location, dir_entry->d_name);
-                
-                char fd_name[FD_MAX];
-                memset(fd_name, '\0', FD_MAX);
-                sprintf(fd_name, "%d", fd[1]);
                 execl("./nonleaf_process", "./nonleaf_process", location, fd_name, NULL);
             }else if(dir_entry->d_type == DT_REG || dir_entry->d_type == DT_LNK){
-                memset(location, '\0', PATH_MAX);
-                strcpy(location, dir_path);
-                strcat(location, "/");
-                strcat(location, dir_entry->d_name); // TODO : Do we need the `/ ` in /nonleaf_proc
-                
-                char fd_name[FD_MAX];
-                memset(fd_name, '\0', FD_MAX);
-                sprintf(fd_name, "%d", fd[1]);
                 execl("./leaf_process", "./leaf_process", location, fd_name, NULL);
             }else{
                 close(fd[1]);
@@ -104,19 +98,23 @@ int main(int argc, char* argv[]) {
             //TODO : Do we need to check for unknown file type and use lstat to handle that case?
         } else{
             close(fd[1]);
-            //pipe_read_ends_array[i] = fd[0];
-            i+=1;
+            pipe_read_ends_array[pipe_read_ends_array_size] = fd[0];
+            ++pipe_read_ends_array_size;
         }
     }
 
 
     //TODO(step5): read from pipe constructed for child process and write to pipe constructed for parent process
+    for (int i = 0; i < pipe_read_ends_array_size; ++i) {
+        ssize_t nbytes;
+        char buffer[BUFFER_SIZE];
+        memset(buffer, '\0', BUFFER_SIZE);
+        while((nbytes = read(pipe_read_ends_array[i], buffer, BUFFER_SIZE)) != 0){
+            strcat(sub_filepath_hashvalue, buffer);
+        }
+    }
+
+    write(pipe_write_end, sub_filepath_hashvalue, strlen(sub_filepath_hashvalue));
+
     while(wait(NULL) != -1);
-
-
-
-
-
-
-    
 }
