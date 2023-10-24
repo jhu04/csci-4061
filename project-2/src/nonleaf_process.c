@@ -5,6 +5,9 @@
 #include <fcntl.h>
 #include <string.h>
 #include <dirent.h>
+#include "../include/hash.h"
+
+#define FD_MAX 10
 
 int main(int argc, char* argv[]) {
     if (argc != 3) {
@@ -18,7 +21,7 @@ int main(int argc, char* argv[]) {
     int pipe_write_end = atoi(argv[2]);
 
     //TODO(step2): malloc buffer for gathering all data transferred from child process as in root_process.c
-    char sub_filepath_hashvalue[4098] = malloc((sizeof char)* 4098);
+    char *sub_filepath_hashvalue = (char *)malloc((sizeof(char)) * BUFFER_SIZE);
     memset(sub_filepath_hashvalue, 0, sizeof(sub_filepath_hashvalue));
 
     //TODO(step3): open directory
@@ -42,54 +45,71 @@ int main(int argc, char* argv[]) {
             continue;
         }
 
+	//Create a new pipe
         int fd[2];
         pipe(fd);
         char location[PATH_MAX];
 
         int ret_id = fork();
+	pipe_read_ends_array[i]  = fd[0];
+	pipe_write_ends_array[i] = fd[1];
 
         if(ret_id == 0){
             close(fd[0]);
             if(dir_entry->d_type == DT_DIR){
                 memset(location, '\0', PATH_MAX);
                 strcpy(location, dir_path);
-                strcat(location, "/nonleaf_process") // TODO : Do we need the `/ ` in /nonleaf_proc
-                execl(location, , "./nonleaf_process", dir_path, fd[1]);
-            }
+		strcat(location, "/");
+                strcat(location, dir_entry->d_name);
+		
+		char fd_name[FD_MAX];
+		sprintf(fd_name, "%d", fd[1]);
+                execl(location, "./nonleaf_process", dir_path, fd_name, NULL);
+            }else if(dir_entry->d_type == DT_REG || dir_entry->d_type == DT_LNK){
+		memset(location, '\0', PATH_MAX);
+                strcpy(location, dir_path);
+		strcat(location, "/");
 
+		char fd_name[FD_MAX];
+		sprintf(fd_name, "%d", fd[1]);
+                strcat(location, dir_entry->d_name); // TODO : Do we need the `/ ` in /nonleaf_proc
+                execl(location, "./leaf_process", dir_path, fd_name, NULL);
+	    }else{
+		close(fd[1]);
+		perror("Weird file type");
+		exit(-1);
+	    }
+/*
             if(dir_entry->d_type == DT_REG){
                 memset(location, '\0', PATH_MAX);
                 strcpy(location, dir_path);
-                strcat(location, "/leaf_process") // TODO : Do we need the `/ ` in /nonleaf_proc
-                execl(location, , "./leaf_process", dir_path, fd[1]);
+                strcat(location, dir_entry->d_name); // TODO : Do we need the `/ ` in /nonleaf_proc
+                execl(location, , "./leaf_process", dir_path, fd[1], NULL);
             }
 
             if(dir_entry->d_type == DT_LNK){
-            memset(location, '\0', PATH_MAX);
-            strcpy(location, dir_path);
-            strcat(location, "/leaf_process") // TODO : Do we need the `/ ` in /nonleaf_proc
-            execl(location, , "./leaf_process", dir_path, fd[1]);
-        
-        }
+        	memset(location, '\0', PATH_MAX);
+                strcpy(location, dir_path);
+                strcat(location, dir_entry->d_name); // TODO : Do we need the `/ ` in /nonleaf_proc
+                execl(location, , "./leaf_process", dir_path, fd[1], NULL);
+            }
+*/
+
+	    close(fd[1]);
+	    perror("Child processes failed to execute");
+	    exit(-1);
+
             //TODO : Do we need to check for unknown file type and use lstat to handle that case?
         } else{
             close(fd[1]);
-            pipe_read_ends_array[i] = fd[0];
+            //pipe_read_ends_array[i] = fd[0];
             i+=1;
         }
-
-        
-
-        
-        
-
-        
-        
     }
 
 
     //TODO(step5): read from pipe constructed for child process and write to pipe constructed for parent process
-
+    while(wait(NULL) != -1);
 
 
 
