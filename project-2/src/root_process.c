@@ -10,6 +10,9 @@
 #define PERM (S_IRUSR | S_IWUSR)
 char *output_file_folder = "output/final_submission/";
 
+// TODO: combine this FD_MAX and FD_MAX in nonleaf_process.c in a header file?
+#define FD_MAX 10
+
 void redirection(char **dup_list, int size, char* root_dir){
     // TODO(overview): redirect standard output to an output file in output_file_folder("output/final_submission/")
     // TODO(step1): determine the filename based on root_dir. e.g. if root_dir is "./root_directories/root1", the output file's name should be "root1.txt"
@@ -41,14 +44,34 @@ int main(int argc, char* argv[]) {
     }
 
     //TODO(overview): fork the first non_leaf process associated with root directory("./root_directories/root*")
-
     char* root_directory = argv[1];
     char all_filepath_hashvalue[4098]; //buffer for gathering all data transferred from child process
-    memset(all_filepath_hashvalue, 0, sizeof(all_filepath_hashvalue));// clean the buffer
+    memset(all_filepath_hashvalue, 0, sizeof(all_filepath_hashvalue)); // clean the buffer
 
     //TODO(step1): construct pipe
+    int fd[2];
+    pipe(fd);
 
     //TODO(step2): fork() child process & read data from pipe to all_filepath_hashvalue
+    int pid = fork();
+
+    // TODO: error handling
+    if (pid == 0) {
+        close(fd[0]);
+
+        char fd_name[FD_MAX];
+        memset(fd_name, '\0', FD_MAX);
+        sprintf(fd_name, "%d", fd[1]);
+
+        execl("./nonleaf_process", "./nonleaf_process", root_directory, fd_name, NULL);
+
+        // TODO: error handling
+        close(fd[1]);
+    } else {
+        close(fd[1]);
+
+        // TODO: read data from pipe
+    }
 
 
     //TODO(step3): malloc dup_list and retain list & use parse_hash() in utils.c to parse all_filepath_hashvalue
