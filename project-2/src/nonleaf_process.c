@@ -45,40 +45,42 @@ int main(int argc, char* argv[]) {
             continue;
         }
 
-	//Create a new pipe
+        //Create a new pipe
         int fd[2];
         pipe(fd);
         char location[PATH_MAX];
 
         int ret_id = fork();
-	pipe_read_ends_array[i]  = fd[0];
-	pipe_write_ends_array[i] = fd[1];
+        pipe_read_ends_array[i]  = fd[0];
+        pipe_write_ends_array[i] = fd[1];
 
-        if(ret_id == 0){
+        if(ret_id != 0){
             close(fd[0]);
             if(dir_entry->d_type == DT_DIR){
                 memset(location, '\0', PATH_MAX);
                 strcpy(location, dir_path);
-		strcat(location, "/");
+                strcat(location, "/");
                 strcat(location, dir_entry->d_name);
-		
-		char fd_name[FD_MAX];
-		sprintf(fd_name, "%d", fd[1]);
-                execl(location, "./nonleaf_process", dir_path, fd_name, NULL);
+                
+                char fd_name[FD_MAX];
+                memset(fd_name, '\0', FD_MAX);
+                sprintf(fd_name, "%d", fd[1]);
+                execl("./nonleaf_process", "./nonleaf_process", location, fd_name, NULL);
             }else if(dir_entry->d_type == DT_REG || dir_entry->d_type == DT_LNK){
-		memset(location, '\0', PATH_MAX);
+                memset(location, '\0', PATH_MAX);
                 strcpy(location, dir_path);
-		strcat(location, "/");
-
-		char fd_name[FD_MAX];
-		sprintf(fd_name, "%d", fd[1]);
+                strcat(location, "/");
                 strcat(location, dir_entry->d_name); // TODO : Do we need the `/ ` in /nonleaf_proc
-                execl(location, "./leaf_process", dir_path, fd_name, NULL);
-	    }else{
-		close(fd[1]);
-		perror("Weird file type");
-		exit(-1);
-	    }
+                
+                char fd_name[FD_MAX];
+                memset(fd_name, '\0', FD_MAX);
+                sprintf(fd_name, "%d", fd[1]);
+                execl("./leaf_process", "./leaf_process", location, fd_name, NULL);
+            }else{
+                close(fd[1]);
+                perror("Weird file type");
+                exit(-1);
+            }
 /*
             if(dir_entry->d_type == DT_REG){
                 memset(location, '\0', PATH_MAX);
@@ -88,16 +90,16 @@ int main(int argc, char* argv[]) {
             }
 
             if(dir_entry->d_type == DT_LNK){
-        	memset(location, '\0', PATH_MAX);
+                memset(location, '\0', PATH_MAX);
                 strcpy(location, dir_path);
                 strcat(location, dir_entry->d_name); // TODO : Do we need the `/ ` in /nonleaf_proc
                 execl(location, , "./leaf_process", dir_path, fd[1], NULL);
             }
 */
 
-	    close(fd[1]);
-	    perror("Child processes failed to execute");
-	    exit(-1);
+            close(fd[1]);
+            perror("Child processes failed to execute");
+            exit(-1);
 
             //TODO : Do we need to check for unknown file type and use lstat to handle that case?
         } else{
