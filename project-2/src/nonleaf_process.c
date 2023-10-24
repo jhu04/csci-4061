@@ -112,6 +112,7 @@ int main(int argc, char* argv[]) {
         while((nbytes = read(pipe_read_ends_array[i], buffer, BUFFER_SIZE)) != 0){
             strcat(sub_filepath_hashvalue, buffer);
         }
+	close(pipe_read_ends_array[i]);
     }
 
     write(pipe_write_end, sub_filepath_hashvalue, strlen(sub_filepath_hashvalue));

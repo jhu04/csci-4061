@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include "../include/utils.h"
+#include "../include/hash.h"
 
 #define WRITE (O_WRONLY | O_CREAT | O_TRUNC)
 #define PERM (S_IRUSR | S_IWUSR)
@@ -45,8 +46,8 @@ int main(int argc, char* argv[]) {
 
     //TODO(overview): fork the first non_leaf process associated with root directory("./root_directories/root*")
     char* root_directory = argv[1];
-    char all_filepath_hashvalue[4098]; //buffer for gathering all data transferred from child process
-    memset(all_filepath_hashvalue, 0, sizeof(all_filepath_hashvalue)); // clean the buffer
+    char all_filepath_hashvalue[BUFFER_SIZE]; //buffer for gathering all data transferred from child process
+    memset(all_filepath_hashvalue, 0, BUFFER_SIZE * sizeof(char)); // clean the buffer
 
     //TODO(step1): construct pipe
     int fd[2];
@@ -69,7 +70,14 @@ int main(int argc, char* argv[]) {
         close(fd[1]);
     } else {
         close(fd[1]);
+	//ssize_t nbytes;
+        char buffer[BUFFER_SIZE];
+        memset(buffer, '\0', BUFFER_SIZE);
 
+	while(read(fd[0], buffer, BUFFER_SIZE) != 0){
+	    strcat(all_filepath_hashvalue, buffer);
+	}
+	close(fd[0]);
         // TODO: read data from pipe
     }
 
@@ -80,6 +88,7 @@ int main(int argc, char* argv[]) {
 
 
     //TODO(step4): implement the functions
+
     delete_duplicate_files(dup_list,size);
     create_symlinks(dup_list, retain_list, size);
     redirection(dup_list, size, argv[1]);
