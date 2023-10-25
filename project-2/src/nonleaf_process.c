@@ -46,7 +46,10 @@ int main(int argc, char* argv[]) {
 
         //Create a new pipe
         int fd[2];
-        pipe(fd);
+        if(pipe(fd) == -1){
+	    perror("Failed to create pipe");
+	    exit(-1);
+	}
         char location[PATH_MAX];
 
         int ret_id = fork();
@@ -68,8 +71,12 @@ int main(int argc, char* argv[]) {
 
             if(dir_entry->d_type == DT_DIR){
                 execl("./nonleaf_process", "./nonleaf_process", location, fd_name, NULL);
+		perror("Failed to execute next nonleaf process");
+		exit(-1);
             }else if(dir_entry->d_type == DT_REG || dir_entry->d_type == DT_LNK){
                 execl("./leaf_process", "./leaf_process", location, fd_name, NULL);
+		perror("Failed to execute next leaf process");
+		exit(-1);
             }else{
                 close(fd[1]);
                 perror("Weird file type");
@@ -115,7 +122,12 @@ int main(int argc, char* argv[]) {
 	close(pipe_read_ends_array[i]);
     }
 
+    //need to error check
     write(pipe_write_end, sub_filepath_hashvalue, strlen(sub_filepath_hashvalue));
+
+    close(pipe_write_end);
+    free(sub_filepath_hashvalue);
+    sub_filepath_hashvalue = NULL;
 
     while(wait(NULL) != -1);
 }

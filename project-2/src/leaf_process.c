@@ -71,8 +71,10 @@ int main(int argc, char* argv[]) {
         free(root_dir);
 
     }else{
-        //TODO(final submission): write the string to pipe
+        //TODO(final submission): write the string to pipe & error check
+	write(pipe_write_end, to_write, strlen(to_write));
 
+	close(pipe_write_end);
         exit(0);
 
     }
