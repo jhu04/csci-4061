@@ -9,7 +9,7 @@
 
 #define SHA256_STRING_SIZE (2 * SHA256_BLOCK_SIZE + 1)
 
-char *output_file_folder = "output/inter_submission/";
+char *output_file_folder = "output/final_submission/";
 
 int main(int argc, char* argv[]) {
     if (argc != 3) {
@@ -27,7 +27,7 @@ int main(int argc, char* argv[]) {
     hash_data_block(hash, file_path);
 
     //TODO(): construct string write to pipe. The format is "<file_path>|<hash_value>|"
-    char to_write[PATH_MAX + SHA256_STRING_SIZE + 2]; // TODO: increase buffer size
+    char to_write[PATH_MAX + SHA256_STRING_SIZE + 2];
     memset(to_write, '\0', PATH_MAX);
     strcpy(to_write, file_path);
     strcat(to_write, "|");

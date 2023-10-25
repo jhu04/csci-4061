@@ -9,8 +9,8 @@
 
 #define WRITE (O_WRONLY | O_CREAT | O_TRUNC)
 #define PERM (S_IRUSR | S_IWUSR)
-#define DUP_LIST_LIM    100
-#define RETAIN_LIST_LIM 100
+#define DUP_LIST_LIM    4096
+#define RETAIN_LIST_LIM 4096
 
 char *output_file_folder = "output/final_submission/";
 
@@ -26,8 +26,16 @@ void redirection(char **dup_list, int size, char* root_dir){
     strcpy(output_file_name, extract_filename(root_dir));
     strcat(output_file_name, ".txt");
 
+    char out_location[BUFFER_SIZE];
+    strcpy(out_location, output_file_folder);
+    strcat(out_location, output_file_name);
+
     //TODO(step2): redirect standard output to output file (output/final_submission/root*.txt)
-    int fd = open(output_file_name, WRITE, PERM);
+    int fd;
+    if( (fd = open(out_location, WRITE, PERM)) == -1){
+	perror("Failed to open output file folder");
+	exit(-1);
+    }
     int TEMP_STDOUT_FILENO = dup(STDOUT_FILENO);
     if(dup2(fd, STDOUT_FILENO) == -1){
 	perror("Failed to create temporary duplicate for stdout fileno");
@@ -44,7 +52,11 @@ void redirection(char **dup_list, int size, char* root_dir){
 	    exit(-1);
 	}
 
+	//fprintf()
+	printf("Size: %d\n", size);
+	fflush(stdout);
 	printf("[<path of symbolic link> --> <path of retained file>] : [%s --> %s]\n", dup_list[i], buffer);
+	fflush(stdout);
     }
 
     close(fd);

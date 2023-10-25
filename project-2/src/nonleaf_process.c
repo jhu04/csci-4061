@@ -21,7 +21,7 @@ int main(int argc, char* argv[]) {
     int pipe_write_end = atoi(argv[2]);
 
     //TODO(step2): malloc buffer for gathering all data transferred from child process as in root_process.c
-    char *sub_filepath_hashvalue = (char *) malloc(BUFFER_SIZE * sizeof(char)); // TODO: use 4098 (in root_process.c) for BUFFER_SIZE?
+    char *sub_filepath_hashvalue = (char *) malloc(BUFFER_SIZE * sizeof(char));
     memset(sub_filepath_hashvalue, '\0', BUFFER_SIZE * sizeof(char));
 
     //TODO(step3): open directory
