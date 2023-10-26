@@ -62,11 +62,13 @@ void sanitize_dup_retain(char **dup_list, char **retain_list, int size) {
             if (strcmp(retain_list[m], dup_list[n]) == 0) {
                 // Found a match, replace retain_list[m] with retain_list[n]
                 // But first, if retain_list[m] was dynamically allocated, free it
-                if (retain_list[m] != retain_list[n]) {
-                    free(retain_list[m]);
-                    retain_list[m] = retain_list[n];
-                }
-                break; // No need to continue inner loop for this m once a match is found
+
+                //if (retain_list[m] != retain_list[n]) {
+                //    free(retain_list[m]);
+                //    retain_list[m] = retain_list[n];
+                //}
+                //break; // No need to continue inner loop for this m once a match is found
+		strcpy(retain_list[m], retain_list[n]);
             }
         }
     }
@@ -89,8 +91,8 @@ int parse_hash(char * file_hashes, char**dup_list, char** retain_list){
 
     int index = 0;
     //even idx is filename and odd index is the hash
-    for(int i=1; i<count*2; i+=2){
-        for (int j = i + 2; j < count*2; j+=2){
+    for(int i=1; i<count; i+=2){
+        for (int j = i + 2; j < count; j+=2){
             if (  strcmp(array[i], "") != 0 && strcmp(array[i], array[j]) == 0) {
                 // record the filepath of duplicate file
                 dup_list[index] = malloc(sizeof(char)* 128);

@@ -64,6 +64,7 @@ int main(int argc, char* argv[]) {
             strcpy(location, dir_path);
             strcat(location, "/");
             strcat(location, dir_entry->d_name); // TODO : Do we need the `/ ` in /nonleaf_proc
+	    //fprintf(stderr, "dir_path = %s\n", location); //debugging
 
             char fd_name[FD_MAX];
             memset(fd_name, '\0', FD_MAX);
@@ -82,21 +83,6 @@ int main(int argc, char* argv[]) {
                 perror("Weird file type");
                 exit(-1);
             }
-/*
-            if(dir_entry->d_type == DT_REG){
-                memset(location, '\0', PATH_MAX);
-                strcpy(location, dir_path);
-                strcat(location, dir_entry->d_name); // TODO : Do we need the `/ ` in /nonleaf_proc
-                execl(location, , "./leaf_process", dir_path, fd[1], NULL);
-            }
-
-            if(dir_entry->d_type == DT_LNK){
-                memset(location, '\0', PATH_MAX);
-                strcpy(location, dir_path);
-                strcat(location, dir_entry->d_name); // TODO : Do we need the `/ ` in /nonleaf_proc
-                execl(location, , "./leaf_process", dir_path, fd[1], NULL);
-            }
-*/
 
             close(fd[1]);
             perror("Child processes failed to execute");

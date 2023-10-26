@@ -53,8 +53,8 @@ void redirection(char **dup_list, int size, char* root_dir){
 	}
 
 	//fprintf()
-	printf("Size: %d\n", size);
-	fflush(stdout);
+	//printf("Size: %d\n", size);
+	//fflush(stdout);
 	printf("[<path of symbolic link> --> <path of retained file>] : [%s --> %s]\n", dup_list[i], buffer);
 	fflush(stdout);
     }
