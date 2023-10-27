@@ -5,8 +5,6 @@
 #include "../include/hash.h"
 #include "../include/utils.h"
 
-#define PATH_MAX 1024
-
 #define SHA256_STRING_SIZE (2 * SHA256_BLOCK_SIZE + 1)
 
 char *output_file_folder = "output/final_submission/";
@@ -23,12 +21,12 @@ int main(int argc, char* argv[]) {
 
     //TODO(): create the hash of given file
     char hash[SHA256_STRING_SIZE];
-    memset(hash, '\0', SHA256_STRING_SIZE);
+    memset(hash, '\0', SHA256_STRING_SIZE * sizeof(char));
     hash_data_block(hash, file_path);
 
     //TODO(): construct string write to pipe. The format is "<file_path>|<hash_value>|"
     char to_write[PATH_MAX + SHA256_STRING_SIZE + 2];
-    memset(to_write, '\0', PATH_MAX);
+    memset(to_write, '\0', PATH_MAX * sizeof(char));
     strcpy(to_write, file_path);
     strcat(to_write, "|");
     strcat(to_write, hash);
@@ -45,7 +43,7 @@ int main(int argc, char* argv[]) {
 
         //TODO(step3): get the location of the new file (e.g. "output/inter_submission/root1" or "output/inter_submission/root2" or "output/inter_submission/root3")
         char location[PATH_MAX];
-        memset(location, '\0', PATH_MAX);
+        memset(location, '\0', PATH_MAX * sizeof(char));
         strcpy(location, output_file_folder);
         strcat(location, root_dir);
         strcat(location, file_name);
@@ -72,9 +70,9 @@ int main(int argc, char* argv[]) {
 
     }else{
         //TODO(final submission): write the string to pipe & error check
-	write(pipe_write_end, to_write, strlen(to_write));
+        write(pipe_write_end, to_write, strlen(to_write));
 
-	close(pipe_write_end);
+        close(pipe_write_end);
         exit(0);
 
     }

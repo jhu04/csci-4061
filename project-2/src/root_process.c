@@ -5,25 +5,24 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include "../include/utils.h"
-#include "../include/hash.h"
 
 #define WRITE (O_WRONLY | O_CREAT | O_TRUNC)
 #define PERM (S_IRUSR | S_IWUSR)
-#define DUP_LIST_LIM    4096
-#define RETAIN_LIST_LIM 4096
 
-char *output_file_folder = "output/final_submission/";
-
+#define BUFFER_SIZE 16384
+#define LIST_LIM 128
 // TODO: combine this FD_MAX and FD_MAX in nonleaf_process.c in a header file?
 #define FD_MAX 10
+
+char *output_file_folder = "output/final_submission/";
 
 void redirection(char **dup_list, int size, char* root_dir){
     // TODO(overview): redirect standard output to an output file in output_file_folder("output/final_submission/")
     // TODO(step1): determine the filename based on root_dir. e.g. if root_dir is "./root_directories/root1", the output file's name should be "root1.txt"
 
     char output_file_name[BUFFER_SIZE];
-    memset(output_file_name, '\0', BUFFER_SIZE);
-    strcpy(output_file_name, extract_filename(root_dir));
+    memset(output_file_name, '\0', BUFFER_SIZE * sizeof(char));
+    strcpy(output_file_name, extract_filename(root_dir)); // TODO: null check
     strcat(output_file_name, ".txt");
 
     char out_location[BUFFER_SIZE];
@@ -46,7 +45,7 @@ void redirection(char **dup_list, int size, char* root_dir){
     for(int i=0; i<size; i++){
         //printf(dup_list[i]);
         char buffer[BUFFER_SIZE];
-        memset(buffer, '\0', BUFFER_SIZE);
+        memset(buffer, '\0', BUFFER_SIZE * sizeof(char));
         if(readlink(dup_list[i], buffer, BUFFER_SIZE) == -1){
             perror("Failed to read symbolic link contents");
             exit(-1);
@@ -121,7 +120,7 @@ int main(int argc, char* argv[]) {
         close(fd[0]);
 
         char fd_name[FD_MAX];
-        memset(fd_name, '\0', FD_MAX);
+        memset(fd_name, '\0', FD_MAX * sizeof(char));
         sprintf(fd_name, "%d", fd[1]);
 
         //check to see if we malloc'd anything here to free
@@ -135,7 +134,7 @@ int main(int argc, char* argv[]) {
         close(fd[1]);
         //ssize_t nbytes;
         char buffer[BUFFER_SIZE];
-        memset(buffer, '\0', BUFFER_SIZE);
+        memset(buffer, '\0', BUFFER_SIZE * sizeof(char));
 
         while(read(fd[0], buffer, BUFFER_SIZE) != 0){
             strcat(all_filepath_hashvalue, buffer);
@@ -151,8 +150,11 @@ int main(int argc, char* argv[]) {
     //TODO(step3): malloc dup_list and retain list & use parse_hash() in utils.c to parse all_filepath_hashvalue
     // dup_list: list of paths of duplicate files. We need to delete the files and create symbolic links at the location
     // retain_list: list of paths of unique files. We will create symbolic links for those files
-    char **dup_list    = (char **) malloc(sizeof(char *) * DUP_LIST_LIM);
-    char **retain_list = (char **) malloc(sizeof(char *) * RETAIN_LIST_LIM);
+    char **dup_list    = (char **) malloc(sizeof(char *) * LIST_LIM);
+    char **retain_list = (char **) malloc(sizeof(char *) * LIST_LIM);
+    memset(dup_list, 0, LIST_LIM * sizeof(char *));
+    memset(retain_list, 0, LIST_LIM * sizeof(char *));
+
     int size = parse_hash(all_filepath_hashvalue, dup_list, retain_list);
 
     //TODO(step4): implement the functions
@@ -162,6 +164,42 @@ int main(int argc, char* argv[]) {
     redirection(dup_list, size, argv[1]);
 
     //TODO(step5): free any arrays that are allocated using malloc!!
+    int dup_list_freed[size];
+    memset(dup_list_freed, 0, size * sizeof(int));
+
+    int retain_list_freed[size];
+    memset(retain_list_freed, 0, size * sizeof(int));
+
+    for (int i = 0; i < size; ++i) {
+        int free_dup_list_i = 1;
+
+        for (int j = 0; j < size; ++j) {
+            if (dup_list[i] == dup_list[j] && dup_list_freed[j]) {
+                free_dup_list_i = 0;
+                break;
+            }
+        }
+
+        if (free_dup_list_i) {
+            free(dup_list[i]);
+            dup_list_freed[i] = 1;
+        }
+
+        int free_retain_list_i = 1;
+
+        for (int j = 0; j < size; ++j) {
+            if (retain_list[i] == retain_list[j] && retain_list_freed[j]) {
+                free_retain_list_i = 0;
+                break;
+            }
+        }
+
+        if (free_retain_list_i) {
+            free(retain_list[i]);
+            retain_list_freed[i] = 1;
+        }
+    }
+
     free(dup_list);
     dup_list = NULL;
     free(retain_list);

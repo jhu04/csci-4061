@@ -5,8 +5,8 @@
 #include <fcntl.h>
 #include <string.h>
 #include <dirent.h>
-#include "../include/hash.h"
 
+#define BUFFER_SIZE 16384
 #define FD_MAX 10
 
 int main(int argc, char* argv[]) {
@@ -34,6 +34,7 @@ int main(int argc, char* argv[]) {
     //TODO(step4): traverse directory and fork child process
     // Hints: Maintain an array to keep track of each read end pipe of child process
     int pipe_read_ends_array[10]; // Note : Chosen 10 since max number of file sin assumption is 10
+    // TODO: define a constant for 10
 
     struct dirent *dir_entry;
 
@@ -47,37 +48,36 @@ int main(int argc, char* argv[]) {
         //Create a new pipe
         int fd[2];
         if(pipe(fd) == -1){
-	    perror("Failed to create pipe");
-	    exit(-1);
-	}
-        char location[PATH_MAX];
+            perror("Failed to create pipe");
+            exit(-1);
+        }
 
         int ret_id = fork();
-        pipe_read_ends_array[pipe_read_ends_array_size]  = fd[0];
+        pipe_read_ends_array[pipe_read_ends_array_size] = fd[0];
 
         if(ret_id == 0){
             close(fd[0]);
 
             // TODO: error handling up here?
 
-            memset(location, '\0', PATH_MAX);
+            char location[PATH_MAX];
+            memset(location, '\0', PATH_MAX * sizeof(char));
             strcpy(location, dir_path);
             strcat(location, "/");
             strcat(location, dir_entry->d_name); // TODO : Do we need the `/ ` in /nonleaf_proc
-	    //fprintf(stderr, "dir_path = %s\n", location); //debugging
 
             char fd_name[FD_MAX];
-            memset(fd_name, '\0', FD_MAX);
+            memset(fd_name, '\0', FD_MAX * sizeof(char));
             sprintf(fd_name, "%d", fd[1]);
 
             if(dir_entry->d_type == DT_DIR){
                 execl("./nonleaf_process", "./nonleaf_process", location, fd_name, NULL);
-		perror("Failed to execute next nonleaf process");
-		exit(-1);
+                perror("Failed to execute next nonleaf process");
+                exit(-1);
             }else if(dir_entry->d_type == DT_REG || dir_entry->d_type == DT_LNK){
                 execl("./leaf_process", "./leaf_process", location, fd_name, NULL);
-		perror("Failed to execute next leaf process");
-		exit(-1);
+                perror("Failed to execute next leaf process");
+                exit(-1);
             }else{
                 close(fd[1]);
                 perror("Weird file type");
@@ -101,17 +101,18 @@ int main(int argc, char* argv[]) {
     for (int i = 0; i < pipe_read_ends_array_size; ++i) {
         ssize_t nbytes;
         char buffer[BUFFER_SIZE];
-        memset(buffer, '\0', BUFFER_SIZE);
+        memset(buffer, '\0', BUFFER_SIZE * sizeof(char));
         while((nbytes = read(pipe_read_ends_array[i], buffer, BUFFER_SIZE)) != 0){
             strcat(sub_filepath_hashvalue, buffer);
         }
-	close(pipe_read_ends_array[i]);
+        close(pipe_read_ends_array[i]);
     }
 
     //need to error check
     write(pipe_write_end, sub_filepath_hashvalue, strlen(sub_filepath_hashvalue));
 
     close(pipe_write_end);
+
     free(sub_filepath_hashvalue);
     sub_filepath_hashvalue = NULL;
 
