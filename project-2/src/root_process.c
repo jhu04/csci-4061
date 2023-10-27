@@ -33,38 +33,38 @@ void redirection(char **dup_list, int size, char* root_dir){
     //TODO(step2): redirect standard output to output file (output/final_submission/root*.txt)
     int fd;
     if( (fd = open(out_location, WRITE, PERM)) == -1){
-	perror("Failed to open output file folder");
-	exit(-1);
+        perror("Failed to open output file folder");
+        exit(-1);
     }
     int TEMP_STDOUT_FILENO = dup(STDOUT_FILENO);
     if(dup2(fd, STDOUT_FILENO) == -1){
-	perror("Failed to create temporary duplicate for stdout fileno");
-	exit(-1);
+        perror("Failed to create temporary duplicate for stdout fileno");
+        exit(-1);
     }
 
     //TODO(step3): read the content each symbolic link in dup_list, write the path as well as the content of symbolic link to output file(as shown in expected)
     for(int i=0; i<size; i++){
-	//printf(dup_list[i]);
-	char buffer[BUFFER_SIZE];
-	memset(buffer, '\0', BUFFER_SIZE);
+        //printf(dup_list[i]);
+        char buffer[BUFFER_SIZE];
+        memset(buffer, '\0', BUFFER_SIZE);
         if(readlink(dup_list[i], buffer, BUFFER_SIZE) == -1){
-	    perror("Failed to read symbolic link contents");
-	    exit(-1);
-	}
+            perror("Failed to read symbolic link contents");
+            exit(-1);
+        }
 
-	//fprintf()
-	//printf("Size: %d\n", size);
-	//fflush(stdout);
-	printf("[<path of symbolic link> --> <path of retained file>] : [%s --> %s]\n", dup_list[i], buffer);
-	fflush(stdout);
+        //fprintf()
+        //printf("Size: %d\n", size);
+        //fflush(stdout);
+        printf("[<path of symbolic link> --> <path of retained file>] : [%s --> %s]\n", dup_list[i], buffer);
+        fflush(stdout);
     }
 
     close(fd);
 
     if(dup2(TEMP_STDOUT_FILENO, STDOUT_FILENO) == -1){
-	close(TEMP_STDOUT_FILENO);
-	perror("Failed to restore stdout fileno");
-	exit(-1);
+        close(TEMP_STDOUT_FILENO);
+        perror("Failed to restore stdout fileno");
+        exit(-1);
     }
 
     close(TEMP_STDOUT_FILENO);
@@ -74,10 +74,10 @@ void create_symlinks(char **dup_list, char **retain_list, int size) {
     //TODO(): create symbolic link at the location of deleted duplicate file
     //TODO(): dup_list[i] will be the symbolic link for retain_list[i]
     for(int i=0; i<size; i++){
-	if(symlink(retain_list[i], dup_list[i]) == -1){
-	    perror("Failed to symlink a duplicate file");
-	    exit(-1);
-	}
+        if(symlink(retain_list[i], dup_list[i]) == -1){
+            perror("Failed to symlink a duplicate file");
+            exit(-1);
+        }
     }
 
 }
@@ -85,10 +85,10 @@ void create_symlinks(char **dup_list, char **retain_list, int size) {
 void delete_duplicate_files(char **dup_list, int size) {
     //TODO(): delete duplicate files, each element in dup_list is the path of the duplicate file
     for(int i=0; i<size; i++){
-	if(unlink(dup_list[i]) == -1){
-	    perror("Failed to remove a duplicate file");
-	    exit(-1);
-	}
+        if(unlink(dup_list[i]) == -1){
+            perror("Failed to remove a duplicate file");
+            exit(-1);
+        }
     }
 }
 
@@ -109,8 +109,8 @@ int main(int argc, char* argv[]) {
     //TODO(step1): construct pipe
     int fd[2];
     if(pipe(fd) == -1){
-	perror("Failed to create pipe for root process");
-	exit(-1);
+        perror("Failed to create pipe for root process");
+        exit(-1);
     }
 
     //TODO(step2): fork() child process & read data from pipe to all_filepath_hashvalue
@@ -124,27 +124,27 @@ int main(int argc, char* argv[]) {
         memset(fd_name, '\0', FD_MAX);
         sprintf(fd_name, "%d", fd[1]);
 
-	//check to see if we malloc'd anything here to free
+        //check to see if we malloc'd anything here to free
         execl("./nonleaf_process", "./nonleaf_process", root_directory, fd_name, NULL);
 
         // TODO: error handling
         close(fd[1]);
-	perror("Failed to execute first nonleaf process");
-	exit(-1);
+        perror("Failed to execute first nonleaf process");
+        exit(-1);
     } else if (pid > 0) {
         close(fd[1]);
-	//ssize_t nbytes;
+        //ssize_t nbytes;
         char buffer[BUFFER_SIZE];
         memset(buffer, '\0', BUFFER_SIZE);
 
-	while(read(fd[0], buffer, BUFFER_SIZE) != 0){
-	    strcat(all_filepath_hashvalue, buffer);
-	}
-	close(fd[0]);
+        while(read(fd[0], buffer, BUFFER_SIZE) != 0){
+            strcat(all_filepath_hashvalue, buffer);
+        }
+        close(fd[0]);
         // TODO: read data from pipe
     } else {
-	perror("Failed to fork at root");
-	exit(-1);
+        perror("Failed to fork at root");
+        exit(-1);
     }
 
 
