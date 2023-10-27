@@ -7,7 +7,7 @@
 #include <stdlib.h>
 
 #define PATH_MAX 1024
-#define BUFFER_SIZE 16384
+#define BUFFER_SIZE 1024
 
 void compute_dual_hash(char *result_hash, char *left_hash, char *right_hash);
 
