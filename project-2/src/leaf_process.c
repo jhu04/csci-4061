@@ -9,8 +9,10 @@
 
 char *output_file_folder = "output/final_submission/";
 
-int main(int argc, char* argv[]) {
-    if (argc != 3) {
+int main(int argc, char *argv[])
+{
+    if (argc != 3)
+    {
         printf("Usage: Inter Submission --> ./leaf_process <file_path> 0\n");
         printf("Usage: Final Submission --> ./leaf_process <file_path> <pipe_write_end>\n");
         return -1;
@@ -32,7 +34,8 @@ int main(int argc, char* argv[]) {
     strcat(to_write, hash);
     strcat(to_write, "|");
 
-    if(pipe_write_end == 0){
+    if (pipe_write_end == 0)
+    {
         //TODO(inter submission)
         //TODO(overview): create a file in output_file_folder("output/inter_submission/root*") and write the constructed string to the file
         //TODO(step1): extract the file_name from file_path using extract_filename() in utils.c
@@ -48,33 +51,46 @@ int main(int argc, char* argv[]) {
         strcat(location, root_dir);
         strcat(location, file_name);
 
-        //TODO(step4): create and write to file, and then close file
+        //create file
         FILE *fp = fopen(location, "w");
-        if (fp == NULL) {
+        if (fp == NULL)
+        {
             perror("Failed to open file");
             exit(-1);
         }
 
+        //write to file
         size_t strlen_to_write = strlen(to_write);
-        if (fwrite(to_write, sizeof(char), strlen_to_write, fp) < strlen_to_write) {
+        if (fwrite(to_write, sizeof(char), strlen_to_write, fp) < strlen_to_write)
+        {
             fclose(fp);
 
             perror("Failed to fully write to file");
             exit(-1);
         }
 
+        //close file
         fclose(fp);
 
         //TODO(step5): free any arrays that are allocated using malloc!! Free the string returned from extract_root_directory()!! It is allocated using malloc in extract_root_directory()
         free(root_dir);
-
-    }else{
+    }
+    else
+    {
         //TODO(final submission): write the string to pipe & error check
-        write(pipe_write_end, to_write, strlen(to_write));
+        if (write(pipe_write_end, to_write, strlen(to_write)) == -1)
+        {
+            perror("Failed to write to pipe");
+            exit(-1);
+        }
 
-        close(pipe_write_end);
+        if (close(pipe_write_end) == -1)
+        {
+            perror("Failed to close pipe write end");
+            exit(-1);
+        }
+
         exit(0);
-
     }
 
     exit(0);

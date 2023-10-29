@@ -5,7 +5,7 @@ Group member names and x500s:
 - Devajya Khanna (khann077)
 - Sameen Rahman (rahma262)
 
-The name of the CSELabs computer that you tested your code on: csel-kh1250-06.cselabs.umn.edu
+The name of the CSELabs computer that you tested your code on: csel-kh1250-06.cselabs.umn.edu & csel-kh1250-01.cselabs.umn.edu
 
 Any changes you made to the Makefile or existing files that would affect grading: Manually added output/ directory while testing, though this directory is not present in our submission. Note that `make inter` removes symbolic links in `root_directories/` by default, so our submission's `root_directories/` files may be different (in terms of links) from the original template's files.
 
