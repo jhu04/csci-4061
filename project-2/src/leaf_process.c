@@ -5,6 +5,7 @@
 #include "../include/hash.h"
 #include "../include/utils.h"
 
+// Size of the hash buffer
 #define SHA256_STRING_SIZE (2 * SHA256_BLOCK_SIZE + 1)
 
 char *output_file_folder = "output/final_submission/";
@@ -17,6 +18,7 @@ int main(int argc, char *argv[])
         printf("Usage: Final Submission --> ./leaf_process <file_path> <pipe_write_end>\n");
         return -1;
     }
+    
     //TODO(): get <file_path> <pipe_write_end> from argv[]
     char *file_path = argv[1];
     int pipe_write_end = atoi(argv[2]);
@@ -78,8 +80,11 @@ int main(int argc, char *argv[])
     else
     {
         //TODO(final submission): write the string to pipe & error check
-        if (write(pipe_write_end, to_write, strlen(to_write)) == -1)
+        ssize_t strlen_to_write = strlen(to_write);
+        if (write(pipe_write_end, to_write, strlen_to_write) < strlen_to_write)
         {
+            close(pipe_write_end);
+
             perror("Failed to write to pipe");
             exit(-1);
         }

@@ -24,7 +24,7 @@ void redirection(char **dup_list, int size, char *root_dir)
     //Construct the output file path string
     char output_file_name[BUFFER_SIZE];
     memset(output_file_name, '\0', BUFFER_SIZE * sizeof(char));
-    strcpy(output_file_name, extract_filename(root_dir)); // TODO: null check
+    strcpy(output_file_name, extract_filename(root_dir));  // extract_filename used since it has correct functionality, despite the function name
     strcat(output_file_name, ".txt");
 
     char out_location[BUFFER_SIZE];
@@ -32,12 +32,13 @@ void redirection(char **dup_list, int size, char *root_dir)
     strcat(out_location, output_file_name);
 
     //TODO(step2): redirect standard output to output file (output/final_submission/root*.txt)
-    int fd;
-    if ((fd = open(out_location, WRITE, PERM)) == -1)
+    int fd = open(out_location, WRITE, PERM);
+    if (fd == -1)
     {
         perror("Failed to open output file folder");
         exit(-1);
     }
+
     int TEMP_STDOUT_FILENO = dup(STDOUT_FILENO);
     if (dup2(fd, STDOUT_FILENO) == -1)
     {
@@ -165,8 +166,15 @@ int main(int argc, char *argv[])
         char buffer[BUFFER_SIZE];
         memset(buffer, '\0', BUFFER_SIZE * sizeof(char));
 
-        while (read(fd[0], buffer, BUFFER_SIZE) != 0)
+        ssize_t nbytes;
+        while ((nbytes = read(fd[0], buffer, BUFFER_SIZE)) != 0)
         {
+            if (nbytes == -1)
+            {
+                perror("Failed to read from pipe");
+                exit(-1);
+            }
+            
             strcat(all_filepath_hashvalue, buffer);
         }
 

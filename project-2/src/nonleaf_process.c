@@ -8,6 +8,10 @@
 
 //Increased buffer size to account for storing file paths and hashes
 #define BUFFER_SIZE 16384
+
+// Note: 10 chosen since max number of files in assumption is 10
+#define MAX_READ_ENDS 10
+
 #define FD_MAX 10
 
 int main(int argc, char *argv[])
@@ -37,8 +41,7 @@ int main(int argc, char *argv[])
 
     //TODO(step4): traverse directory and fork child process
     // Hints: Maintain an array to keep track of each read end pipe of child process
-    int pipe_read_ends_array[10]; // Note : Chosen 10 since max number of file sin assumption is 10
-    // TODO: define a constant for 10
+    int pipe_read_ends_array[MAX_READ_ENDS];
 
     struct dirent *dir_entry;
 
@@ -60,10 +63,14 @@ int main(int argc, char *argv[])
             exit(-1);
         }
 
-        int ret_id = fork();
         pipe_read_ends_array[pipe_read_ends_array_size] = fd[0];
 
-        if (ret_id == 0)
+        int ret_id = fork();
+        if (ret_id == -1) {
+            perror("Failed to fork at root");
+            exit(-1);
+        }
+        else if (ret_id == 0)
         {
             if (close(fd[0]) == -1)
             {
@@ -133,6 +140,12 @@ int main(int argc, char *argv[])
         memset(buffer, '\0', BUFFER_SIZE * sizeof(char));
         while ((nbytes = read(pipe_read_ends_array[i], buffer, BUFFER_SIZE)) != 0)
         {
+            if (nbytes == -1)
+            {
+                perror("Failed to read from pipe");
+                exit(-1);
+            }
+            
             strcat(sub_filepath_hashvalue, buffer);
         }
 
@@ -144,7 +157,8 @@ int main(int argc, char *argv[])
     }
 
     //Write to parent pipe
-    if (write(pipe_write_end, sub_filepath_hashvalue, strlen(sub_filepath_hashvalue)) == -1)
+    ssize_t strlen_sub_filepath_hashvalue = strlen(sub_filepath_hashvalue);
+    if (write(pipe_write_end, sub_filepath_hashvalue, strlen_sub_filepath_hashvalue) < strlen_sub_filepath_hashvalue)
     {
         perror("Failed to write to parent pipe");
         exit(-1);
@@ -159,6 +173,5 @@ int main(int argc, char *argv[])
     free(sub_filepath_hashvalue);
     sub_filepath_hashvalue = NULL;
 
-    while (wait(NULL) != -1)
-        ;
+    while (wait(NULL) != -1);
 }
