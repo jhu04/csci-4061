@@ -1,10 +1,14 @@
 #include "image_rotation.h"
- 
- 
+
 //Global integer to indicate the length of the queue??
 //Global integer to indicate the number of worker threads
 //Global file pointer for writing to log file in worker??
+FILE *logfile;
+
 //Might be helpful to track the ID's of your threads in a global array
+pthread_t processing_thread;
+pthread_t *worker_threads;
+
 //What kind of locks will you need to make everything thread safe? [Hint you need multiple]
 //What kind of CVs will you need  (i.e. queue full, queue empty) [Hint you need multiple]
 //How will you track the requests globally between threads? How will you ensure this is thread safe?
@@ -23,10 +27,12 @@
     The function output: 
     it should output the threadId, requestNumber, file_name into the logfile and stdout.
 */
-void log_pretty_print(FILE* to_write, int threadId, int requestNumber, char * file_name){
-   
-}
+void log_pretty_print(FILE *to_write,
+                      int threadId,
+                      int requestNumber,
+                      char *file_name) {
 
+}
 
 /*
 
@@ -43,9 +49,7 @@ void log_pretty_print(FILE* to_write, int threadId, int requestNumber, char * fi
 
 */
 
-void *processing(void *args)
-{
-
+void *processing(void *args) {
 
 }
 
@@ -63,65 +67,64 @@ void *processing(void *args)
     6:  The Worker thread will log the request from the queue while maintaining synchronization using lock and unlock.  
 
     8: Hint the worker thread should be in a While(1) loop since a worker thread can process multiple requests and It will have two while loops in total
-        that is just a recommendation feel free to implement it your way :) 
+        that is just a recommendation feel free to implement it your way :)
     9: You may need different lock depending on the job.  
 
 */
 
 
-void * worker(void *args)
-{
+void *worker(void *args) {
 
 
-        /*
-            Stbi_load takes:
-                A file name, int pointer for width, height, and bpp
+    /*
+        Stbi_load takes:
+            A file name, int pointer for width, height, and bpp
 
-        */
+    */
 
-       // uint8_t* image_result = stbi_load("??????","?????", "?????", "???????",  CHANNEL_NUM);
-        
-
-        uint8_t **result_matrix = (uint8_t **)malloc(sizeof(uint8_t*) * width);
-        uint8_t** img_matrix = (uint8_t **)malloc(sizeof(uint8_t*) * width);
-        for(int i = 0; i < width; i++){
-            result_matrix[i] = (uint8_t *)malloc(sizeof(uint8_t) * height);
-            img_matrix[i] = (uint8_t *)malloc(sizeof(uint8_t) * height);
-        }
-        /*
-        linear_to_image takes: 
-            The image_result matrix from stbi_load
-            An image matrix
-            Width and height that were passed into stbi_load
-        
-        */
-        //linear_to_image("??????", "????", "????", "????");
-        
-
-        ////TODO: you should be ready to call flip_left_to_right or flip_upside_down depends on the angle(Should just be 180 or 270)
-        //both take image matrix from linear_to_image, and result_matrix to store data, and width and height.
-        //Hint figure out which function you will call. 
-        //flip_left_to_right(img_matrix, result_matrix, width, height); or flip_upside_down(img_matrix, result_matrix ,width, height);
+    // uint8_t* image_result = stbi_load("??????","?????", "?????", "???????",  CHANNEL_NUM);
 
 
-        
-        
-        //uint8_t* img_array = NULL; ///Hint malloc using sizeof(uint8_t) * width * height
-    
+    uint8_t **result_matrix = (uint8_t **) malloc(sizeof(uint8_t *) * width);
+    uint8_t **img_matrix = (uint8_t **) malloc(sizeof(uint8_t *) * width);
+    for (int i = 0; i < width; i++) {
+        result_matrix[i] = (uint8_t *) malloc(sizeof(uint8_t) * height);
+        img_matrix[i] = (uint8_t *) malloc(sizeof(uint8_t) * height);
+    }
+    /*
+    linear_to_image takes:
+        The image_result matrix from stbi_load
+        An image matrix
+        Width and height that were passed into stbi_load
 
-        ///TODO: you should be ready to call flatten_mat function, using result_matrix
-        //img_arry and width and height; 
-        //flatten_mat("??????", "??????", "????", "???????");
+    */
+    //linear_to_image("??????", "????", "????", "????");
 
 
-        ///TODO: You should be ready to call stbi_write_png using:
-        //New path to where you wanna save the file,
-        //Width
-        //height
-        //img_array
-        //width*CHANNEL_NUM
-       // stbi_write_png("??????", "?????", "??????", CHANNEL_NUM, "??????", "?????"*CHANNEL_NUM);
-    
+    ////TODO: you should be ready to call flip_left_to_right or flip_upside_down depends on the angle(Should just be 180 or 270)
+    //both take image matrix from linear_to_image, and result_matrix to store data, and width and height.
+    //Hint figure out which function you will call.
+    //flip_left_to_right(img_matrix, result_matrix, width, height); or flip_upside_down(img_matrix, result_matrix ,width, height);
+
+
+
+
+    //uint8_t* img_array = NULL; ///Hint malloc using sizeof(uint8_t) * width * height
+
+
+    ///TODO: you should be ready to call flatten_mat function, using result_matrix
+    //img_arry and width and height;
+    //flatten_mat("??????", "??????", "????", "???????");
+
+
+    ///TODO: You should be ready to call stbi_write_png using:
+    //New path to where you wanna save the file,
+    //Width
+    //height
+    //img_array
+    //width*CHANNEL_NUM
+    // stbi_write_png("??????", "?????", "??????", CHANNEL_NUM, "??????", "?????"*CHANNEL_NUM);
+
 
 }
 
@@ -136,13 +139,36 @@ void * worker(void *args)
 
 */
 
-int main(int argc, char* argv[])
-{
-    if(argc != 5)
-    {
-        fprintf(stderr, "Usage: File Path to image dirctory, File path to output dirctory, number of worker thread, and Rotation angle\n");
+int main(int argc, char *argv[]) {
+    if (argc != 5) {
+        fprintf(stderr,
+                "Usage: File Path to image dirctory, File path to output dirctory, number of worker thread, and Rotation angle\n");
     }
-    
-    ///TODO: 
 
+    ///TODO:
+    char *image_directory = argv[1];
+    char *output_directory = argv[2];
+    int num_worker_threads = atoi(argv[3]);
+    int rotation_angle = atoi(argv[4]);
+
+    logfile = fopen(LOG_FILE_NAME, "w");
+
+    processing_args_t processing_args;
+    processing_args.image_directory = image_directory;
+    pthread_create(&processing_thread,
+                   NULL,
+                   (void *) processing,
+                   (void *) &processing_args);
+
+    worker_threads = malloc(num_worker_threads * sizeof(pthread_t *));
+    int args[num_worker_threads];
+    for (int i = 0; i < num_worker_threads; ++i) {
+        args[i] = i;
+        pthread_create(&worker_threads[i],
+                       NULL,
+                       (void *) worker,
+                       (void *) &args[i]);
+    }
+
+    // TODO: pthread_join
 }

@@ -48,6 +48,7 @@ typedef struct request_queue
 typedef struct processing_args
 {
    //what data do you need here?
+   char *image_directory;
 } processing_args_t;
 
 

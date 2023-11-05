@@ -15,8 +15,31 @@ others assist by reviewing, looking up information in the writeup/documentation,
 
 Every 45 minutes, we will switch the screen sharer/typer. This should result in equal contributions for each member.
 
-Plan for the overall project : 
-''' 
+Plan on how you are going to construct the worker threads and how you will make use of mutex locks and unlock and Conditions variables.
+```
+Construct worker threads: keep array
+
+Mutex locks:
+1. Queue
+2. Output directory
+
+Condition variables:
+1. Test if request queue empty
+2. Test if request queue full
+
+Lock request queue, log file, global variables
 
 
-'''
+```
+```
+worker:
+    
+
+main:
+    Parse command arguments (number of worker threads)
+    Open log file
+    Spawn processing thread (pthread_create)
+    Spawn an array of worker threads (pthread_create)
+    pthread_join on all threads
+    Close log file
+```
