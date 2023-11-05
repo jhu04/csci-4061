@@ -18,6 +18,7 @@
 #include <signal.h>
 #include <limits.h>
 #include <stdint.h>
+#include <sys/queue.h>
 #include "utils.h"
 
 #define STB_IMAGE_IMPLEMENTATION
@@ -42,7 +43,7 @@
 
 typedef struct request_queue
 {
-    //what data do you need here?
+    (char **)requests = malloc(MAX_QUEUE_LEN*(sizeof(char **)));
 }request_t; 
 
 typedef struct processing_args

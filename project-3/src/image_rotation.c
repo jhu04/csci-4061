@@ -50,7 +50,37 @@ void log_pretty_print(FILE *to_write,
 */
 
 void *processing(void *args) {
+    // Obtain image directory from args
+    processing_args_t *p_args = (processing_args_t *)args;
+    char *image_directory = p_args->image_directory;
+    request_t 
+    DIR *directory = opendir(image_directory);
+    if(directory == NULL){
+        perror("Failed to open directory");
+        exit(1);
+    }
+    struct dirent *entry;
 
+    while((entry = readdir(directory)) != NULL){
+        char* entry_name = entry->d_name;
+        if(strcmp(entry_name, ".") == 0 || strcmp(entry_name, "..") == 0){
+            entry=readdir(directory);
+            continue;
+        }
+        if(entry->d_type == DT_REG){
+            char path_buf[BUFF_SIZE];
+            memset(path_buf, '\0', BUFF_SIZE*(sizeof(char)));
+            strcpy(path_buf, image_directory);
+            strcat(path_buf, "/");
+            strcat(path_buf, entry->d_name);
+            // TODO : store path in queue
+        }
+
+    }
+    if(closedir(directory) == -1){
+        perror("Failed to close directory");
+        exit(-1);
+    }
 }
 
 /*
@@ -81,7 +111,8 @@ void *worker(void *args) {
             A file name, int pointer for width, height, and bpp
 
     */
-
+    // For intermediate submission, print thread ID and exit: 
+    printf("Thread ID is : %d", *((int *)args));
     // uint8_t* image_result = stbi_load("??????","?????", "?????", "???????",  CHANNEL_NUM);
 
 
@@ -145,7 +176,7 @@ int main(int argc, char *argv[]) {
                 "Usage: File Path to image dirctory, File path to output dirctory, number of worker thread, and Rotation angle\n");
     }
 
-    ///TODO:
+    // TODO:
     char *image_directory = argv[1];
     char *output_directory = argv[2];
     int num_worker_threads = atoi(argv[3]);
@@ -171,4 +202,10 @@ int main(int argc, char *argv[]) {
     }
 
     // TODO: pthread_join
+    for(int j=0; j<num_worker_threads; j++){
+        pthread_join(worker_threads[j], NULL);
+    }
+
+    fclose(logfile);
+    free(worker_threads);
 }
