@@ -25,7 +25,8 @@ Mutex locks:
 
 Condition variables:
 1. Test if request queue empty
-2. Test if request queue full
+2. Test if request queue full (assuming # of images >= queue buffer size)
+3. "Done Traversing" --> no more elements will be added to queue 
 
 Lock request queue, log file, global variables
 
@@ -33,7 +34,14 @@ Lock request queue, log file, global variables
 ```
 ```
 worker:
+*Make a global array of worker threads
+*
     
+
+
+check if processing thread done --> a broadcasted signal
+    check if queue empty
+        pthread_exit()
 
 main:
     Parse command arguments (number of worker threads)

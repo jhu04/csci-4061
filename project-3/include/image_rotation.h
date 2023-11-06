@@ -40,16 +40,26 @@
 
 
 /********************* [ Helpful Typedefs        ] ************************/
+//Lock based on which thread wants to pop off queue
 
 typedef struct request_queue
 {
-    (char **)requests = malloc(MAX_QUEUE_LEN*(sizeof(char **)));
+    request_entry_t *requests;
+    int size;
 }request_t; 
+
+typedef struct request_queue_entry
+{
+    char *filename;
+    int rotation_angle;
+}request_entry_t
 
 typedef struct processing_args
 {
    //what data do you need here?
-   char *image_directory;
+    char *image_directory;
+    int num_worker_threads;
+    int rotation_angle;
 } processing_args_t;
 
 
@@ -57,5 +67,5 @@ typedef struct processing_args
 void *processing(void *args); 
 void * worker(void *args); 
 void log_pretty_print(FILE* to_write, int threadId, int requestNumber, char * file_name);
-
+void enqueue(request_entry_t entry);
 #endif

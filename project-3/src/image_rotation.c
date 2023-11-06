@@ -9,6 +9,25 @@ FILE *logfile;
 pthread_t processing_thread;
 pthread_t *worker_threads;
 
+
+//Requests Queue initialization + Queue Functions
+request_t requests_queue = {.requests = malloc(MAX_QUEUE_LEN*(sizeof(request_entry_t *))) , .size = 0};
+
+void enqueue(request_entry_t entry){
+    int size = requests_queue.size;
+    requests_queue.requests[size] = {.filename = entry.filename, .rotation_angle = entry.rotation_angle};
+    requests_queue.size++;
+}
+
+void dequeue(){
+    int size = requests_queue.size;
+
+    for(int i=0; i<size-1; i++){
+	requests_queue[i] = requests_queue[i+1];
+    }
+
+    requests_queue.size--;
+}
 //What kind of locks will you need to make everything thread safe? [Hint you need multiple]
 //What kind of CVs will you need  (i.e. queue full, queue empty) [Hint you need multiple]
 //How will you track the requests globally between threads? How will you ensure this is thread safe?
@@ -53,7 +72,9 @@ void *processing(void *args) {
     // Obtain image directory from args
     processing_args_t *p_args = (processing_args_t *)args;
     char *image_directory = p_args->image_directory;
-    request_t 
+    int num_worker_threads = p_args->num_worker_threads;
+    int rotation_angle = p_args->rotation_angle;
+
     DIR *directory = opendir(image_directory);
     if(directory == NULL){
         perror("Failed to open directory");
@@ -74,6 +95,8 @@ void *processing(void *args) {
             strcat(path_buf, "/");
             strcat(path_buf, entry->d_name);
             // TODO : store path in queue
+	    request_entry_t entry = {.filename = path_buf, .rotation_angle = rotation_angle};
+            enqueue(entry);
         }
 
     }
@@ -113,6 +136,7 @@ void *worker(void *args) {
     */
     // For intermediate submission, print thread ID and exit: 
     printf("Thread ID is : %d", *((int *)args));
+    exit(0);
     // uint8_t* image_result = stbi_load("??????","?????", "?????", "???????",  CHANNEL_NUM);
 
 
@@ -186,6 +210,8 @@ int main(int argc, char *argv[]) {
 
     processing_args_t processing_args;
     processing_args.image_directory = image_directory;
+    processing_args.num_worker_threads = num_worker_threads;
+    processing_args.rotation_angle = rotation_angle;
     pthread_create(&processing_thread,
                    NULL,
                    (void *) processing,
@@ -208,4 +234,5 @@ int main(int argc, char *argv[]) {
 
     fclose(logfile);
     free(worker_threads);
+    free(requests_queue.requests);
 }
