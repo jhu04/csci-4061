@@ -19,14 +19,16 @@ void enqueue(request_entry_t entry){
     requests_queue.size++;
 }
 
-void dequeue(){
-    int size = requests_queue.size;
+request_entry_t dequeue(){
+    request_entry_t res = requests_queue.requests[0];
 
-    for(int i=0; i<size-1; i++){
+    for(int i=0; i<requests_queue.size-1; i++){
         requests_queue.requests[i] = requests_queue.requests[i+1];
     }
 
     requests_queue.size--;
+
+    return res;
 }
 
 //What kind of locks will you need to make everything thread safe? [Hint you need multiple]
