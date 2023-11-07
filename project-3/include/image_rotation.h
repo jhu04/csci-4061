@@ -42,17 +42,17 @@
 /********************* [ Helpful Typedefs        ] ************************/
 //Lock based on which thread wants to pop off queue
 
-typedef struct request_queue
-{
-    request_entry_t *requests;
-    int size;
-}request_t; 
-
 typedef struct request_queue_entry
 {
     char *filename;
     int rotation_angle;
-}request_entry_t
+}request_entry_t;
+
+typedef struct request_queue
+{
+    request_entry_t *requests;
+    int size;
+}request_t;
 
 typedef struct processing_args
 {

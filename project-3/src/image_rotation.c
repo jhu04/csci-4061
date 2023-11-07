@@ -11,11 +11,11 @@ pthread_t *worker_threads;
 
 
 //Requests Queue initialization + Queue Functions
-request_t requests_queue = {.requests = malloc(MAX_QUEUE_LEN*(sizeof(request_entry_t *))) , .size = 0};
+request_t requests_queue;
 
 void enqueue(request_entry_t entry){
     int size = requests_queue.size;
-    requests_queue.requests[size] = {.filename = entry.filename, .rotation_angle = entry.rotation_angle};
+    requests_queue.requests[size] = entry;//{.filename = entry.filename, .rotation_angle = entry.rotation_angle};
     requests_queue.size++;
 }
 
@@ -23,11 +23,12 @@ void dequeue(){
     int size = requests_queue.size;
 
     for(int i=0; i<size-1; i++){
-	requests_queue[i] = requests_queue[i+1];
+	requests_queue.requests[i] = requests_queue.requests[i+1];
     }
 
     requests_queue.size--;
 }
+
 //What kind of locks will you need to make everything thread safe? [Hint you need multiple]
 //What kind of CVs will you need  (i.e. queue full, queue empty) [Hint you need multiple]
 //How will you track the requests globally between threads? How will you ensure this is thread safe?
@@ -135,17 +136,21 @@ void *worker(void *args) {
 
     */
     // For intermediate submission, print thread ID and exit: 
-    printf("Thread ID is : %d", *((int *)args));
-    exit(0);
+    printf("Thread ID is : %d\n", *((int *)args));
+    fflush(stdout);
+    //fexit(0);
     // uint8_t* image_result = stbi_load("??????","?????", "?????", "???????",  CHANNEL_NUM);
 
-
+//Need to uncomment after intermediate
+/*
     uint8_t **result_matrix = (uint8_t **) malloc(sizeof(uint8_t *) * width);
     uint8_t **img_matrix = (uint8_t **) malloc(sizeof(uint8_t *) * width);
     for (int i = 0; i < width; i++) {
         result_matrix[i] = (uint8_t *) malloc(sizeof(uint8_t) * height);
         img_matrix[i] = (uint8_t *) malloc(sizeof(uint8_t) * height);
     }
+*/
+
     /*
     linear_to_image takes:
         The image_result matrix from stbi_load
@@ -201,6 +206,9 @@ int main(int argc, char *argv[]) {
     }
 
     // TODO:
+    requests_queue.requests = malloc(MAX_QUEUE_LEN*(sizeof(request_entry_t)));
+    requests_queue.size = 0;
+
     char *image_directory = argv[1];
     char *output_directory = argv[2];
     int num_worker_threads = atoi(argv[3]);
@@ -212,26 +220,32 @@ int main(int argc, char *argv[]) {
     processing_args.image_directory = image_directory;
     processing_args.num_worker_threads = num_worker_threads;
     processing_args.rotation_angle = rotation_angle;
-    pthread_create(&processing_thread,
+
+    if( pthread_create(&processing_thread,
                    NULL,
                    (void *) processing,
-                   (void *) &processing_args);
+                   (void *) &processing_args)    != 0){
+	fprintf(stderr, "Error creating processing thread\n");
+    }
 
-    worker_threads = malloc(num_worker_threads * sizeof(pthread_t *));
+    worker_threads = malloc(num_worker_threads * sizeof(pthread_t));
     int args[num_worker_threads];
+
     for (int i = 0; i < num_worker_threads; ++i) {
         args[i] = i;
-        pthread_create(&worker_threads[i],
+        if( pthread_create(&worker_threads[i],
                        NULL,
                        (void *) worker,
-                       (void *) &args[i]);
+                       (void *) &args[i])    != 0){
+	    fprintf(stderr, "Error creating worker thread #%d\n", i);
+	}
     }
 
     // TODO: pthread_join
     for(int j=0; j<num_worker_threads; j++){
         pthread_join(worker_threads[j], NULL);
     }
-
+    pthread_join(processing_thread, NULL);
     fclose(logfile);
     free(worker_threads);
     free(requests_queue.requests);
