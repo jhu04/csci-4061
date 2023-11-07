@@ -23,7 +23,7 @@ void dequeue(){
     int size = requests_queue.size;
 
     for(int i=0; i<size-1; i++){
-	requests_queue.requests[i] = requests_queue.requests[i+1];
+        requests_queue.requests[i] = requests_queue.requests[i+1];
     }
 
     requests_queue.size--;
@@ -86,18 +86,24 @@ void *processing(void *args) {
     while((entry = readdir(directory)) != NULL){
         char* entry_name = entry->d_name;
         if(strcmp(entry_name, ".") == 0 || strcmp(entry_name, "..") == 0){
-            entry=readdir(directory);
             continue;
         }
         if(entry->d_type == DT_REG){
-            char path_buf[BUFF_SIZE];
-            memset(path_buf, '\0', BUFF_SIZE*(sizeof(char)));
+            // TODO: make sure to free this
+            char *path_buf = malloc(BUFF_SIZE * sizeof(char));
+            memset(path_buf, '\0', BUFF_SIZE * sizeof(char));
             strcpy(path_buf, image_directory);
             strcat(path_buf, "/");
             strcat(path_buf, entry->d_name);
-            // TODO : store path in queue
-	    request_entry_t entry = {.filename = path_buf, .rotation_angle = rotation_angle};
-            enqueue(entry);
+
+            request_entry_t request_entry = {.filename = path_buf, .rotation_angle = rotation_angle};
+            enqueue(request_entry);
+
+            // prints queue for debugging purposes
+            for (int i = 0; i < requests_queue.size; ++i) {
+                printf("requests_queue.requests[%d].filename = %s\n", i, requests_queue.requests[i].filename);
+            }
+            printf("\n");
         }
 
     }
@@ -135,10 +141,10 @@ void *worker(void *args) {
             A file name, int pointer for width, height, and bpp
 
     */
-    // For intermediate submission, print thread ID and exit: 
+    // For intermediate submission, print thread ID and exit:
     printf("Thread ID is : %d\n", *((int *)args));
     fflush(stdout);
-    //fexit(0);
+    // exit(0);
     // uint8_t* image_result = stbi_load("??????","?????", "?????", "???????",  CHANNEL_NUM);
 
 //Need to uncomment after intermediate
@@ -225,7 +231,7 @@ int main(int argc, char *argv[]) {
                    NULL,
                    (void *) processing,
                    (void *) &processing_args)    != 0){
-	fprintf(stderr, "Error creating processing thread\n");
+        fprintf(stderr, "Error creating processing thread\n");
     }
 
     worker_threads = malloc(num_worker_threads * sizeof(pthread_t));
@@ -237,8 +243,8 @@ int main(int argc, char *argv[]) {
                        NULL,
                        (void *) worker,
                        (void *) &args[i])    != 0){
-	    fprintf(stderr, "Error creating worker thread #%d\n", i);
-	}
+            fprintf(stderr, "Error creating worker thread #%d\n", i);
+        }
     }
 
     // TODO: pthread_join
