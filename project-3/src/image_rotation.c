@@ -91,7 +91,7 @@ void *processing(void *args) {
             continue;
         }
         if(entry->d_type == DT_REG){
-            // TODO: make sure to free this
+            // TODO: make sure to free this (in worker after done processing)
             char *path_buf = malloc(BUFF_SIZE * sizeof(char));
             memset(path_buf, '\0', BUFF_SIZE * sizeof(char));
             strcpy(path_buf, image_directory);
