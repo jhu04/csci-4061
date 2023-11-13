@@ -9,9 +9,21 @@ FILE *logfile;
 pthread_t processing_thread;
 pthread_t *worker_threads;
 
+//Array to keep track of number of requests processed by each thread
+int *processed_count_array;
 
 //Requests Queue initialization + Queue Functions
 request_t requests_queue;
+
+//Global variable to check if all images have been processed
+bool requests_complete = false;
+
+//Number of requests that have been processed so far
+int num_requests_processed = 0;
+
+//Output directory
+char *output_directory;
+
 
 void enqueue(request_entry_t entry){
     int size = requests_queue.size;
@@ -32,12 +44,18 @@ request_entry_t dequeue(){
 }
 
 //What kind of locks will you need to make everything thread safe? [Hint you need multiple]
+pthread_mutex_t queue_lock = PTHREAD_MUTEX_INITIALIZER;
 //What kind of CVs will you need  (i.e. queue full, queue empty) [Hint you need multiple]
+pthread_cond_t prod_cond    = PTHREAD_COND_INITIALIZER;
+pthread_cond_t cons_cond    = PTHREAD_COND_INITIALIZER;
+
+
+// TODO : to consider in depth
 //How will you track the requests globally between threads? How will you ensure this is thread safe?
 //How will you track which index in the request queue to remove next?
-//How will you update and utilize the current number of requests in the request queue?
-//How will you track the p_thread's that you create for workers?
-//How will you know where to insert the next request received into the request queue?
+//How will you update and utilize the current number of requests in the request queue? --> 
+//How will you track the p_thread's that you create for workers? -->  TODO : do we even need this? we use proc_count_arr to keep track of thread_id's via index with count so why do we need worker_threads?
+//How will you know where to insert the next request received into the request queue? --> uses queue size to track current position ot be filled
 
 
 /*
@@ -134,66 +152,106 @@ void *processing(void *args) {
 
 */
 
-
+//TODO : consider making a worker_args_t struct instead of using a global variable for output directory and the like
 void *worker(void *args) {
+    // Intermediate Submission : 
+    // For intermediate submission, print thread ID and exit:
+    // printf("Thread ID is : %d\n", *((int *)args));
+    // fflush(stdout);
+    // exit(0);
+    int threadId = *((int *)args);
+    int count_of_processed_requests = 0;
+    request_entry_t cur_request;
 
+    while(true){
+        pthread_mutex_lock(&queue_lock);
+        while(requests_queue.size == 0){
+            if(requests_complete){
+                pthread_mutex_unlock(&queue_lock);
+                //receives broadcast and exits all whiles loop
+            }
+            pthread_cond_wait(&cons_cond, &queue_lock);
+        }
 
-    /*
+        /*
         Stbi_load takes:
             A file name, int pointer for width, height, and bpp
+        */
+        cur_request = dequeue();
+        //TODO : The buf size is arbitrary
+        int width[1];
+        int height[1];
+        int bpp[1];
+        uint8_t* image_result = stbi_load(cur_request.filename, width, height, bpp,  CHANNEL_NUM);
+        uint8_t **result_matrix = (uint8_t **) malloc(sizeof(uint8_t *) * width);
+        uint8_t **img_matrix = (uint8_t **) malloc(sizeof(uint8_t *) * width);
+        for (int i = 0; i < width; i++) {
+            result_matrix[i] = (uint8_t *) malloc(sizeof(uint8_t) * height);
+            img_matrix[i] = (uint8_t *) malloc(sizeof(uint8_t) * height);
+        }
 
-    */
-    // For intermediate submission, print thread ID and exit:
-    printf("Thread ID is : %d\n", *((int *)args));
-    fflush(stdout);
-    // exit(0);
-    // uint8_t* image_result = stbi_load("??????","?????", "?????", "???????",  CHANNEL_NUM);
 
-//Need to uncomment after intermediate
-/*
-    uint8_t **result_matrix = (uint8_t **) malloc(sizeof(uint8_t *) * width);
-    uint8_t **img_matrix = (uint8_t **) malloc(sizeof(uint8_t *) * width);
-    for (int i = 0; i < width; i++) {
-        result_matrix[i] = (uint8_t *) malloc(sizeof(uint8_t) * height);
-        img_matrix[i] = (uint8_t *) malloc(sizeof(uint8_t) * height);
+        /*
+        linear_to_image takes:
+            The image_result matrix from stbi_load
+            An image matrix
+            Width and height that were passed into stbi_load
+
+        */
+        linear_to_image(result_matrix, img_matrix, width, height);
+
+
+        ////TODO: you should be ready to call flip_left_to_right or flip_upside_down depends on the angle(Should just be 180 or 270)
+        //both take image matrix from linear_to_image, and result_matrix to store data, and width and height.
+        //Hint figure out which function you will call.
+        if(cur_request.rotation_angle == 180){
+            flip_left_to_right(img_matrix, result_matrix, width, height);
+        }
+        else{
+            flip_upside_down(img_matrix, result_matrix ,width, height);
+        }
+    
+        uint8_t* img_array = malloc(sizeof(uint8_t) * width * height); ///Hint malloc using sizeof(uint8_t) * width * height
+
+
+        ///TODO: you should be ready to call flatten_mat function, using result_matrix
+        //img_arry and width and height;
+        flatten_mat(result_matrix, img_array, width, heigh);
+
+
+        ///TODO: You should be ready to call stbi_write_png using:
+        //New path to where you wanna save the file,
+        //TODO : make 2048 a constant
+        char *path_buf = malloc(BUFF_SIZE * sizeof(char));
+        memset(path_buf, '\0', BUFF_SIZE * sizeof(char));
+        strcpy(path_buf, image_directory);
+        strcat(path_buf, "/");
+        strcat(path_buf, cur_request.filename);
+        //Width
+        //height
+        //img_array
+        //width*CHANNEL_NUM
+        stbi_write_png(output_directory, width, height, CHANNEL_NUM, img_array, width*CHANNEL_NUM);
+
+        //Update the processed_count_array
+        processed_count_array[threadId] +=1 ;
+        //Update number of processed images
+        num_requests_processed +=1;
+
+        //TODO : lock the file and the processed_count_array before printing
+        fprintf(logfile, "[%d][%d][%s]", threadId, processed_count_array[threadId], path_buf);
+        fflush(logfile);
+        fprintf(stdout, "[%d][%d][%s]", threadId, processed_count_array[threadId], path_buf);
+        fflush(stdout);
+
+        pthread_mutex_unlock(&queue_lock);
     }
-*/
-
-    /*
-    linear_to_image takes:
-        The image_result matrix from stbi_load
-        An image matrix
-        Width and height that were passed into stbi_load
-
-    */
-    //linear_to_image("??????", "????", "????", "????");
-
-
-    ////TODO: you should be ready to call flip_left_to_right or flip_upside_down depends on the angle(Should just be 180 or 270)
-    //both take image matrix from linear_to_image, and result_matrix to store data, and width and height.
-    //Hint figure out which function you will call.
-    //flip_left_to_right(img_matrix, result_matrix, width, height); or flip_upside_down(img_matrix, result_matrix ,width, height);
-
-
-
-
-    //uint8_t* img_array = NULL; ///Hint malloc using sizeof(uint8_t) * width * height
-
-
-    ///TODO: you should be ready to call flatten_mat function, using result_matrix
-    //img_arry and width and height;
-    //flatten_mat("??????", "??????", "????", "???????");
-
-
-    ///TODO: You should be ready to call stbi_write_png using:
-    //New path to where you wanna save the file,
-    //Width
-    //height
-    //img_array
-    //width*CHANNEL_NUM
-    // stbi_write_png("??????", "?????", "??????", CHANNEL_NUM, "??????", "?????"*CHANNEL_NUM);
-
-
+    //waiting for termination
+    pthread_cond_signal(&prod_cond);
+    //receives broadcast and terminates
+    pthread_cond_wait(&cons_cond);
+    //Technically we dont need this since the thread would end once the execution goes pass this line
+    pthread_exit(NULL);
 }
 
 /*
@@ -214,13 +272,18 @@ int main(int argc, char *argv[]) {
     }
 
     // TODO:
+    
     requests_queue.requests = malloc(MAX_QUEUE_LEN*(sizeof(request_entry_t)));
     requests_queue.size = 0;
 
     char *image_directory = argv[1];
-    char *output_directory = argv[2];
+    output_directory = argv[2];
     int num_worker_threads = atoi(argv[3]);
     int rotation_angle = atoi(argv[4]);
+
+    //intialise the array that keeps track of number of requests processed by each worker thread
+    processed_count_array = malloc((sizeof(int)) * num_worker_threads);
+    memset(processed_count_array, 0, (sizeof(int)) * num_worker_threads);
 
     logfile = fopen(LOG_FILE_NAME, "w");
 
