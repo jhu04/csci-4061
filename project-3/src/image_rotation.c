@@ -167,18 +167,25 @@ void *worker(void *args) {
         pthread_mutex_lock(&queue_lock);
         while(requests_queue.size == 0){
             if(requests_complete){
-                pthread_mutex_unlock(&queue_lock);
-                //receives broadcast and exits all whiles loop
+                //Wait for the broadcast signal
+		pthread_cond_wait(&cons_cond, &queue_lock);
+
+		pthread_mutex_unlock(&queue_lock);
+		pthread_exit();
             }
             pthread_cond_wait(&cons_cond, &queue_lock);
         }
+
+	//#####################CONSUMER CODE#######################################
 
         /*
         Stbi_load takes:
             A file name, int pointer for width, height, and bpp
         */
         cur_request = dequeue();
-        //TODO : The buf size is arbitrary
+	pthread_mutex_unlock(&queue_lock);
+
+      //TODO : The buf size is arbitrary
         int width[1];
         int height[1];
         int bpp[1];
@@ -243,15 +250,16 @@ void *worker(void *args) {
         fflush(logfile);
         fprintf(stdout, "[%d][%d][%s]", threadId, processed_count_array[threadId], path_buf);
         fflush(stdout);
-
-        pthread_mutex_unlock(&queue_lock);
     }
+
+/*
     //waiting for termination
     pthread_cond_signal(&prod_cond);
     //receives broadcast and terminates
     pthread_cond_wait(&cons_cond);
     //Technically we dont need this since the thread would end once the execution goes pass this line
     pthread_exit(NULL);
+*/
 }
 
 /*
