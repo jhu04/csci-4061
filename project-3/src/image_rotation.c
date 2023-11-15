@@ -22,7 +22,7 @@ bool requests_complete = false;
 int num_requests_processed = 0;
 
 //Output directory
-char *output_directory;
+char *output_directory = ""
 
 
 void enqueue(request_entry_t entry){
@@ -45,6 +45,7 @@ request_entry_t dequeue(){
 
 //What kind of locks will you need to make everything thread safe? [Hint you need multiple]
 pthread_mutex_t queue_lock = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t num_requests_lock = PTHREAD_MUTEX_INITIALIZER;
 //What kind of CVs will you need  (i.e. queue full, queue empty) [Hint you need multiple]
 pthread_cond_t prod_cond    = PTHREAD_COND_INITIALIZER;
 pthread_cond_t cons_cond    = PTHREAD_COND_INITIALIZER;
@@ -71,7 +72,10 @@ void log_pretty_print(FILE *to_write,
                       int threadId,
                       int requestNumber,
                       char *file_name) {
-
+    fprintf(to_write, "[%d][%d][%s]\n", threadId, requestNumber, file_name);
+    fflush(to_write);
+    fprintf(stdout, "[%d][%d][%s]\n", threadId, requestNumber, file_name);
+    fflush(stdout);
 }
 
 /*
@@ -178,18 +182,21 @@ void *worker(void *args) {
 
 	//#####################CONSUMER CODE#######################################
 
+	//Take an element off of the queue & signal to the processing thread about a new empty slot before unlocking
+        cur_request = dequeue();
+	pthread_cond_signal(&prod_cond);
+	pthread_mutex_unlock(&queue_lock);
+
         /*
         Stbi_load takes:
             A file name, int pointer for width, height, and bpp
         */
-        cur_request = dequeue();
-	pthread_mutex_unlock(&queue_lock);
 
       //TODO : The buf size is arbitrary
-        int width[1];
-        int height[1];
-        int bpp[1];
-        uint8_t* image_result = stbi_load(cur_request.filename, width, height, bpp,  CHANNEL_NUM);
+        int width = 0;
+        int height = 0;
+        int bpp = 0;
+        uint8_t* image_result = stbi_load(cur_request.filename, &width, &height, &bpp,  CHANNEL_NUM);
         uint8_t **result_matrix = (uint8_t **) malloc(sizeof(uint8_t *) * width);
         uint8_t **img_matrix = (uint8_t **) malloc(sizeof(uint8_t *) * width);
         for (int i = 0; i < width; i++) {
@@ -205,7 +212,7 @@ void *worker(void *args) {
             Width and height that were passed into stbi_load
 
         */
-        linear_to_image(result_matrix, img_matrix, width, height);
+        linear_to_image(image_result, img_matrix, width, height);
 
 
         ////TODO: you should be ready to call flip_left_to_right or flip_upside_down depends on the angle(Should just be 180 or 270)
@@ -223,7 +230,8 @@ void *worker(void *args) {
 
         ///TODO: you should be ready to call flatten_mat function, using result_matrix
         //img_arry and width and height;
-        flatten_mat(result_matrix, img_array, width, heigh);
+	//Flattening image to 1-dimensional data structure
+        flatten_mat(result_matrix, img_array, width, height);
 
 
         ///TODO: You should be ready to call stbi_write_png using:
@@ -231,25 +239,31 @@ void *worker(void *args) {
         //TODO : make 2048 a constant
         char *path_buf = malloc(BUFF_SIZE * sizeof(char));
         memset(path_buf, '\0', BUFF_SIZE * sizeof(char));
-        strcpy(path_buf, image_directory);
+        strcpy(path_buf, output_directory);
         strcat(path_buf, "/");
         strcat(path_buf, cur_request.filename);
         //Width
         //height
         //img_array
         //width*CHANNEL_NUM
-        stbi_write_png(output_directory, width, height, CHANNEL_NUM, img_array, width*CHANNEL_NUM);
+        stbi_write_png(path_buf, width, height, CHANNEL_NUM, img_array, width*CHANNEL_NUM);
 
         //Update the processed_count_array
+	//Don't need to lock this since individual threads access their own parts of the array
         processed_count_array[threadId] +=1 ;
-        //Update number of processed images
-        num_requests_processed +=1;
 
-        //TODO : lock the file and the processed_count_array before printing
-        fprintf(logfile, "[%d][%d][%s]", threadId, processed_count_array[threadId], path_buf);
-        fflush(logfile);
-        fprintf(stdout, "[%d][%d][%s]", threadId, processed_count_array[threadId], path_buf);
-        fflush(stdout);
+	//Update number of processed images
+	//num_requests is a shared global variable: needs to be locked
+	pthread_mutex_lock(&num_requests_lock);
+        num_requests_processed +=1;
+	pthread_mutex_unlock(&num_requests_lock);
+
+        //TODO : is locking even needed? (protect logFile from raise conditions)
+	log_pretty_print(logfile, threadId, processed_count_array[threadId], path_buf);
+        //fprintf(logfile, "[%d][%d][%s]\n", threadId, processed_count_array[threadId], path_buf);
+        //fflush(logfile);
+        //fprintf(stdout, "[%d][%d][%s]\n", threadId, processed_count_array[threadId], path_buf);
+        //fflush(stdout);
     }
 
 /*
