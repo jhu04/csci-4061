@@ -1,7 +1,5 @@
 #include "image_rotation.h"
 
-// TODO: Section 16.6 in textbook for termination
-
 //Global integer to indicate the length of the queue??
 //Global integer to indicate the number of worker threads
 //Global file pointer for writing to log file in worker??
@@ -52,11 +50,22 @@ request_entry_t dequeue() {
     return res;
 }
 
+
 //How will you track the requests globally between threads? How will you ensure this is thread safe?
+//	We used a queue structure to store requests. There is a mutex (queue_lock) for this.
 //How will you track which index in the request queue to remove next?
-//How will you update and utilize the current number of requests in the request queue? --> 
-//How will you track the p_thread's that you create for workers? -->  TODO : do we even need this? we use proc_count_arr to keep track of thread_id's via index with count so why do we need worker_threads?
-//How will you know where to insert the next request received into the request queue? --> uses queue size to track current position ot be filled
+//	The queue has a "size" field that changes as elements are inserted/removed. 
+//	Queue entries are enqueued at the tail (at the "size"th index)
+//	Queue entries are dequeued at the head (at 0th index)
+//How will you update and utilize the current number of requests in the request queue?
+//	Current number of requests in the queue is stored in the queue's size field
+//	The workers usually wait on the queue if its size is 0, and processor waits on the queue if it reaches its buffer limit size MAX_QUEUE_LEN
+//How will you track the p_thread's that you create for workers?
+//	We have a processed_count_array that stores the number of entries that a particular thread stored.
+//	Thread id's start from 0, analogous to how array indexes work. So processed_count_array[threadId] correctly provides
+//	the number of requests the thread with id threadId processed.
+//How will you know where to insert the next request received into the request queue? 
+//	It uses queue size to track current position to be filled
 
 
 /*
@@ -99,6 +108,7 @@ void *processing(void *args) {
     int num_worker_threads = p_args->num_worker_threads;
     int rotation_angle = p_args->rotation_angle;
 
+    //Open image directory for traversal
     DIR *directory = opendir(image_directory);
     if (directory == NULL) {
         perror("Failed to open directory");
@@ -108,6 +118,8 @@ void *processing(void *args) {
     struct dirent *entry;
     int num_files_enqueued = 0;
 
+    //Traverse directory for regular files and add them to the request queue
+    //Assumed that directory's regular files are all .png
     while ((entry = readdir(directory)) != NULL) {
         char *entry_name = entry->d_name;
         if (strcmp(entry_name, ".") == 0 || strcmp(entry_name, "..") == 0) {
@@ -120,18 +132,29 @@ void *processing(void *args) {
             strcat(path_buf, "/");
             strcat(path_buf, entry->d_name);
 
+	    //New queue entry
             request_entry_t request_entry = {.filename = path_buf, .rotation_angle = rotation_angle};
 
-            pthread_mutex_lock(&queue_lock);
+            if(pthread_mutex_lock(&queue_lock) != 0){
+		exit(-1);
+	    }
 
+	    //Wait for an empty slot
             while (requests_queue.size == MAX_QUEUE_LEN) {
-                pthread_cond_wait(&prod_cond, &queue_lock);
+                if(pthread_cond_wait(&prod_cond, &queue_lock) != 0){
+		    exit(-1);
+		}
             }
 
+	    //Add entry to queue and signal to worker about new entry
             enqueue(request_entry);
+            if(pthread_cond_signal(&cons_cond) != 0){
+		exit(-1);
+	    }
 
-            pthread_cond_signal(&cons_cond);
-            pthread_mutex_unlock(&queue_lock);
+            if(pthread_mutex_unlock(&queue_lock) != 0){
+		exit(-1);
+	    }
 
             ++num_files_enqueued;
         }
@@ -142,32 +165,52 @@ void *processing(void *args) {
         exit(-1);
     }
 
+    //Finished traversing directory... Wake up blocked workers & inform unblocked workers
     requests_complete = true;
-    pthread_cond_broadcast(&cons_cond);
+    if(pthread_cond_broadcast(&cons_cond) != 0){
+	exit(-1);
+    }
 
+    //Wait for all workers to acknowledge their completion
+    //and count the number of files processed by workers
     int num_files_processed = 0;
     for (int i = 0; i < num_worker_threads; ++i) {
-        pthread_mutex_lock(&worker_done_lock[i]);
+        if(pthread_mutex_lock(&worker_done_lock[i]) != 0){
+	    exit(-1);
+	}
 
-        //use a while !will_terminate[i] (signalling b4 waiting)
         while (!will_term[i]) {
-            pthread_cond_wait(&worker_done_cv[i], &worker_done_lock[i]);
+            if(pthread_cond_wait(&worker_done_cv[i], &worker_done_lock[i]) != 0){
+		exit(-1);
+	    }
         }
 
-        pthread_mutex_unlock(&worker_done_lock[i]);
+        if(pthread_mutex_unlock(&worker_done_lock[i]) != 0){
+	    exit(-1);
+	}
 
         num_files_processed += processed_count_array[i];
     }
 
+    //Verify that number of files processed is equal to number of files processor inserted into queue
     if (num_files_enqueued != num_files_processed) {
         fprintf(stderr, "Verification that number of files enqueued equals number of files processed failed");
         exit(-1);
     }
 
-    pthread_mutex_lock(&term_lock);
+    //Broadcast termination signal to workers
+    if(pthread_mutex_lock(&term_lock) != 0){
+	exit(-1);
+    }
+
     ready_for_term = true;
-    pthread_cond_broadcast(&terminate);
-    pthread_mutex_unlock(&term_lock);
+
+    if(pthread_cond_broadcast(&terminate) != 0){
+	exit(-1);
+    }
+    if(pthread_mutex_unlock(&term_lock) != 0){
+	exit(-1);
+    }
 }
 
 
@@ -198,54 +241,63 @@ void *worker(void *args) {
     int threadId = *((int *) args);
     request_entry_t cur_request;
 
-    //TODO : should we use a local variable to update proccessed count, and then 
-    //       update the array or can we update the array directly?
-    //int processed_count = 0;
     while (true) {
-        //processed_count = processed_count+1;
-        pthread_mutex_lock(&queue_lock);
-        printf("Thread%d locked queue_lock\n", threadId); // TODO: debug
+        if(pthread_mutex_lock(&queue_lock) != 0){
+	    exit(-1);
+	}
         while (requests_queue.size == 0) {
             if (requests_complete) {
-                pthread_mutex_unlock(&queue_lock);
+                if(pthread_mutex_unlock(&queue_lock) != 0){
+		    exit(-1);
+		}
 
-                pthread_mutex_lock(&worker_done_lock[threadId]);
-                //processed_count_array[threadId] = processed_count;
+                if(pthread_mutex_lock(&worker_done_lock[threadId]) != 0){
+		    exit(-1);
+		}
+
                 will_term[threadId] = true;
 
                 //Signal to processor thread that this worker is waiting to terminate
-                printf("Consumer signalled done\n"); // TODO: debug
-                pthread_cond_signal(&worker_done_cv[threadId]);
+                if(pthread_cond_signal(&worker_done_cv[threadId]) != 0){
+		    exit(-1);
+		}
 
                 //Wait for termination signal --> bool for termination sent
                 while (!ready_for_term) {
-                    pthread_cond_wait(&terminate, &worker_done_lock[threadId]);
+                    if(pthread_cond_wait(&terminate, &worker_done_lock[threadId]) != 0){
+			exit(-1);
+		    }
                 }
-                pthread_mutex_unlock(&worker_done_lock[threadId]);
-                printf("Consumer exiting\n"); // TODO: debug
+                if(pthread_mutex_unlock(&worker_done_lock[threadId]) != 0){
+		    exit(-1);
+		}
                 pthread_exit(NULL);
             }
-            printf("Consumer waiting on cons_cond\n"); // TODO: debug
-            pthread_cond_wait(&cons_cond, &queue_lock);
+
+            if(pthread_cond_wait(&cons_cond, &queue_lock) != 0){
+		exit(-1);
+	    }
         }
 
         //#####################CONSUMER CODE#######################################
 
         //Take an element off of the queue & signal to the processing thread about a new empty slot before unlocking
         cur_request = dequeue();
-        pthread_cond_signal(&prod_cond);
-        printf("Thread%d unlocked queue_lock\n", threadId); // TODO: debug
-        pthread_mutex_unlock(&queue_lock);
+        if(pthread_cond_signal(&prod_cond) != 0){
+	    exit(-1);
+	}
 
-        //pthread_mutex_lock(&worker_done_lock[threadId]);
+        if(pthread_mutex_unlock(&queue_lock) != 0){
+	    exit(-1);
+	}
+
+	//Mutex lock not used because different threads access different indexes of array
         processed_count_array[threadId]++;
-        //pthread_mutex_unlock(&worker_done_lock[threadId]);
 
         /*
         Stbi_load takes:
             A file name, int pointer for width, height, and bpp
         */
-
         int width = 0;
         int height = 0;
         int bpp = 0;
@@ -306,11 +358,9 @@ void *worker(void *args) {
                        img_array,
                        width * CHANNEL_NUM);
 
-        //Update the processed_count_array
-        //Don't need to lock this since individual threads access their own parts of the array
-        //processed_count++;
         
         //Logfile is locked in log_pretty_print
+	//Outputs logging in log file and stdout
         log_pretty_print(logfile,
                          threadId,
                          processed_count_array[threadId],
@@ -353,19 +403,30 @@ int main(int argc, char *argv[]) {
     worker_done_lock = (pthread_mutex_t *) malloc(num_worker_threads * sizeof(pthread_mutex_t));
     for (int i = 0; i < num_worker_threads; ++i) {
         // TODO: error check
-        pthread_mutex_init(&worker_done_lock[i], NULL);
+        if(pthread_mutex_init(&worker_done_lock[i], NULL) != 0){
+	    perror("Failed to create a done_lock mutex");
+	    exit(-1);
+	}
     }
 
     worker_done_cv = (pthread_cond_t *) malloc(num_worker_threads * sizeof(pthread_cond_t));
     for (int i = 0; i < num_worker_threads; ++i) {
         // TODO: error check
-        pthread_cond_init(&worker_done_cv[i], NULL);
+        if(pthread_cond_init(&worker_done_cv[i], NULL) != 0){
+	    perror("Failed to create a done_lock condtional variable");
+	    exit(-1);
+	}
     }
 
     will_term = (bool *) malloc(num_worker_threads * sizeof(bool));
     memset(will_term, false, num_worker_threads * sizeof(bool));
 
     logfile = fopen(LOG_FILE_NAME, "w");
+
+    if(logfile == NULL){
+	perror("Failed to open log file");
+	exit(-1);
+    }
 
     processing_args_t processing_args;
     processing_args.image_directory = image_directory;
@@ -376,7 +437,8 @@ int main(int argc, char *argv[]) {
                        NULL,
                        (void *) processing,
                        (void *) &processing_args) != 0) {
-        fprintf(stderr, "Error creating processing thread\n");
+        perror("Error creating processing thread");
+	exit(-1);
     }
 
     worker_threads = malloc(num_worker_threads * sizeof(pthread_t));
@@ -388,16 +450,29 @@ int main(int argc, char *argv[]) {
                            NULL,
                            (void *) worker,
                            (void *) &args[i]) != 0) {
-            fprintf(stderr, "Error creating worker thread #%d\n", i);
+            perror("Error creating a worker thread");
+	    exit(-1);
         }
     }
 
-    //pthread_join
+    //Join on all worker and processing threads
     for (int j = 0; j < num_worker_threads; j++) {
-        pthread_join(worker_threads[j], NULL);
+        if(pthread_join(worker_threads[j], NULL) != 0){
+	    perror("Failed to join on a worker thread");
+       	    exit(-1);
+	}
     }
-    pthread_join(processing_thread, NULL);
-    fclose(logfile);
+
+    if(pthread_join(processing_thread, NULL) != 0){
+	perror("Failed to join on processor thread");
+	exit(-1);
+    }
+
+    if(fclose(logfile) != 0){
+	perror("Failed to close log file");
+	exit(-1);
+    }
+
     free(worker_threads);
     free(requests_queue.requests);
 }
