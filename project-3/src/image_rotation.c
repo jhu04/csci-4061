@@ -17,6 +17,8 @@ request_t requests_queue;
 
 //Global variable to check if all images have been processed
 bool requests_complete = false;
+bool *will_term;
+bool ready_for_term = false;
 
 //Number of requests that have been processed so far
 //int num_requests_processed = 0;
@@ -33,6 +35,9 @@ pthread_cond_t cons_cond = PTHREAD_COND_INITIALIZER;
 
 pthread_mutex_t *worker_done_lock;
 pthread_cond_t *worker_done_cv;
+
+pthread_mutex_t term_lock = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t terminate = PTHREAD_COND_INITIALIZER;
 
 void enqueue(request_entry_t entry) {
     int size = requests_queue.size;
@@ -139,6 +144,7 @@ void *processing(void *args) {
 
             enqueue(request_entry);
 
+	    
             pthread_cond_signal(&cons_cond);
             pthread_mutex_unlock(&queue_lock);
 
@@ -159,7 +165,10 @@ void *processing(void *args) {
         exit(-1);
     }
 
-    printf("Requests (directory traversal) complete\n"); // TODO: debug
+    //what if worker thread aren't done yet?
+    //No longer putting things on the queue
+    //TODO: check if broadcasting correct: (request_complete)
+    printf("Requests (directory traversal) complete\n"); // TODO: debug --> we need to wait for all workers 1st, compare #processes files, then send broadcast
     requests_complete = true;
     pthread_cond_broadcast(&cons_cond);
 
@@ -168,8 +177,14 @@ void *processing(void *args) {
     for (int i = 0; i < num_worker_threads; ++i) {
         // TODO: why need lock? -Just Jeffrey being confused
         printf("%d\n", i); // TODO: debug
+
+	//use a while !will_terminate[i] (signalling b4 waiting)
         pthread_mutex_lock(&worker_done_lock[i]);
-        pthread_cond_wait(&worker_done_cv[i], &worker_done_lock[i]);
+
+	while(!will_term[i]){
+            pthread_cond_wait(&worker_done_cv[i], &worker_done_lock[i]);
+	}
+
         pthread_mutex_unlock(&worker_done_lock[i]);
 
         total += processed_count_array[i];
@@ -180,7 +195,14 @@ void *processing(void *args) {
         exit(1);
     }
 
-    pthread_cond_signal(&cons_cond);
+    printf("Processor will send termination signal\n");
+    pthread_mutex_lock(&term_lock);
+
+    ready_for_term = true;
+    pthread_cond_broadcast(&terminate);
+
+    pthread_mutex_unlock(&term_lock);
+    printf("Processor will terminate\n");
 }
 
 /*
@@ -224,12 +246,15 @@ void *worker(void *args) {
                 pthread_mutex_lock(&worker_done_lock[threadId]);
                 processed_count_array[threadId] = processed_count;
 
+		//Signal to processor thread that this worker is waiting to terminate
                 printf("Consumer signalled done\n"); // TODO: debug
                 pthread_cond_signal(&worker_done_cv[threadId]);
 
-                pthread_cond_wait(&cons_cond, &worker_done_lock[threadId]);
+		//Wait for termination signal --> bool for termination sent
+		while(!ready_for_term){
+                    pthread_cond_wait(&terminate, &worker_done_lock[threadId]);
+		}
                 pthread_mutex_unlock(&worker_done_lock[threadId]);
-
                 printf("Consumer exiting\n"); // TODO: debug
                 pthread_exit(NULL);
             }
@@ -370,20 +395,23 @@ int main(int argc, char *argv[]) {
     int rotation_angle = atoi(argv[4]);
 
     //intialise the array that keeps track of number of requests processed by each worker thread
-    processed_count_array = malloc(sizeof(int) * num_worker_threads);
+    processed_count_array = (int *)malloc(sizeof(int) * num_worker_threads);
     memset(processed_count_array, 0, sizeof(int) * num_worker_threads);
 
-    worker_done_lock = malloc(num_worker_threads * sizeof(pthread_mutex_t));
+    worker_done_lock = (pthread_mutex_t *)malloc(num_worker_threads * sizeof(pthread_mutex_t));
     for (int i = 0; i < num_worker_threads; ++i) {
         // TODO: error check
         pthread_mutex_init(&worker_done_lock[i], NULL);
     }
 
-    worker_done_cv = malloc(num_worker_threads * sizeof(pthread_cond_t));
+    worker_done_cv = (pthread_cond_t *)malloc(num_worker_threads * sizeof(pthread_cond_t));
     for (int i = 0; i < num_worker_threads; ++i) {
         // TODO: error check
         pthread_cond_init(&worker_done_cv[i], NULL);
     }
+
+    will_term = (bool *)malloc(num_worker_threads * sizeof(bool));
+    memset(will_term, 0, num_worker_threads * sizeof(bool));
 
     logfile = fopen(LOG_FILE_NAME, "w");
 
