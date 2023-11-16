@@ -39,14 +39,24 @@ pthread_cond_t *worker_done_cv;
 pthread_mutex_t term_lock = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t terminate = PTHREAD_COND_INITIALIZER;
 
+pthread_mutex_t log_lock = PTHREAD_MUTEX_INITIALIZER;
+
 void enqueue(request_entry_t entry) {
     int size = requests_queue.size;
     requests_queue.requests[size] = entry;//{.filename = entry.filename, .rotation_angle = entry.rotation_angle};
+
+    printf("Added QueueEntry#%d, Name:%s, Angle:%d\n", requests_queue.size, requests_queue.requests[size].filename, requests_queue.requests[size].rotation_angle);
+    fflush(stdout);
+
     requests_queue.size++;
 }
 
 request_entry_t dequeue() {
+    int size = requests_queue.size;
     request_entry_t res = requests_queue.requests[0];
+
+    printf("Removed size=%d, Name:%s, Angle:%d\n", requests_queue.size, requests_queue.requests[size].filename, requests_queue.requests[size].rotation_angle);
+    fflush(stdout);
 
     for (int i = 0; i < requests_queue.size - 1; i++) {
         requests_queue.requests[i] = requests_queue.requests[i + 1];
@@ -126,17 +136,16 @@ void *processing(void *args) {
             // TODO: make sure to free this (in worker after done processing)
             char *path_buf = malloc(BUFF_SIZE * sizeof(char));
             memset(path_buf, '\0', BUFF_SIZE * sizeof(char));
-            strcpy(path_buf, image_directory);
-            strcat(path_buf, "/");
+            //strcpy(path_buf, image_directory);
+            //strcat(path_buf, "/");
             strcat(path_buf, entry->d_name);
 
-            request_entry_t request_entry =
-                {.filename = path_buf, .rotation_angle = rotation_angle};
+            request_entry_t request_entry = {.filename = path_buf, .rotation_angle = rotation_angle};
 
             pthread_mutex_lock(&queue_lock);
 
             // TODO: debug
-            printf("Producer locked queue_lock\n");
+            printf("Producer added following entry to queue\n");
 
             while (requests_queue.size == MAX_QUEUE_LEN) {
                 pthread_cond_wait(&prod_cond, &queue_lock);
@@ -176,7 +185,7 @@ void *processing(void *args) {
     int total = 0;
     for (int i = 0; i < num_worker_threads; ++i) {
         // TODO: why need lock? -Just Jeffrey being confused
-        printf("%d\n", i); // TODO: debug
+        printf("Thread%d is ready to terminate\n", i); // TODO: debug
 
 	//use a while !will_terminate[i] (signalling b4 waiting)
         pthread_mutex_lock(&worker_done_lock[i]);
@@ -234,17 +243,19 @@ void *worker(void *args) {
     int threadId = *((int *) args);
     request_entry_t cur_request;
 
-    int processed_count = 0;
+    //int processed_count = 0;
     while (true) {
+        //processed_count = processed_count+1;
         pthread_mutex_lock(&queue_lock);
-        printf("Consumer locked queue_lock\n"); // TODO: debug
+        printf("Thread%d locked queue_lock\n", threadId); // TODO: debug
         while (requests_queue.size == 0) {
             if (requests_complete) {
                 pthread_mutex_unlock(&queue_lock);
 
                 // TODO: why need lock?
                 pthread_mutex_lock(&worker_done_lock[threadId]);
-                processed_count_array[threadId] = processed_count;
+                //processed_count_array[threadId] = processed_count;
+		will_term[threadId] = true;
 
 		//Signal to processor thread that this worker is waiting to terminate
                 printf("Consumer signalled done\n"); // TODO: debug
@@ -265,10 +276,16 @@ void *worker(void *args) {
         //#####################CONSUMER CODE#######################################
 
         //Take an element off of the queue & signal to the processing thread about a new empty slot before unlocking
-        cur_request = dequeue();
+        //processed_count++;
+	//printf("Thread%d | Processed count = %d\n", threadId, processed_count);
+	cur_request = dequeue();
         pthread_cond_signal(&prod_cond);
-        printf("Consumer unlocked queue_lock\n"); // TODO: debug
+        printf("Thread%d unlocked queue_lock\n", threadId); // TODO: debug
         pthread_mutex_unlock(&queue_lock);
+
+	//pthread_mutex_lock(&worker_done_lock[threadId]);
+	processed_count_array[threadId]++;
+	//pthread_mutex_unlock(&worker_done_lock[threadId]);
 
         /*
         Stbi_load takes:
@@ -340,8 +357,7 @@ void *worker(void *args) {
 
         //Update the processed_count_array
         //Don't need to lock this since individual threads access their own parts of the array
-        ++processed_count;
-
+        //processed_count++;
         // TODO: delete
         //Update number of processed images
         //num_requests is a shared global variable: needs to be locked
@@ -351,20 +367,14 @@ void *worker(void *args) {
 
         //TODO : is locking even needed? (protect logFile from raise conditions)
         // TODO: lock logfile
+
+        pthread_mutex_lock(&log_lock);
         log_pretty_print(logfile,
                          threadId,
                          processed_count_array[threadId],
                          path_buf);
+	pthread_mutex_unlock(&log_lock);
     }
-
-/*
-    //waiting for termination
-    pthread_cond_signal(&prod_cond);
-    //receives broadcast and terminates
-    pthread_cond_wait(&cons_cond);
-    //Technically we dont need this since the thread would end once the execution goes pass this line
-    pthread_exit(NULL);
-*/
 }
 
 /*
@@ -411,7 +421,7 @@ int main(int argc, char *argv[]) {
     }
 
     will_term = (bool *)malloc(num_worker_threads * sizeof(bool));
-    memset(will_term, 0, num_worker_threads * sizeof(bool));
+    memset(will_term, false, num_worker_threads * sizeof(bool));
 
     logfile = fopen(LOG_FILE_NAME, "w");
 
