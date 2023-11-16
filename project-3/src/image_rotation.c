@@ -1,5 +1,7 @@
 #include "image_rotation.h"
 
+// TODO: Section 16.6 in textbook for termination
+
 //Global integer to indicate the length of the queue??
 //Global integer to indicate the number of worker threads
 //Global file pointer for writing to log file in worker??
@@ -67,12 +69,13 @@ request_entry_t dequeue() {
     it should output the threadId, requestNumber, file_name into the logfile and stdout.
 */
 void log_pretty_print(FILE *to_write, int threadId, int requestNumber, char *file_name) {
-    // TODO: mutex locks for fprintf
+    // TODO: mutex locks for fprintf, put everything in critical section
 
     fprintf(to_write, "[%d][%d][%s]\n", threadId, requestNumber, file_name);
     fflush(to_write);
     fprintf(stdout, "[%d][%d][%s]\n", threadId, requestNumber, file_name);
     fflush(stdout);
+
 }
 
 
@@ -158,7 +161,8 @@ void *processing(void *args) {
     }
 
     if (num_files_enqueued != num_files_processed) {
-        perror("Verification that number of files enqueued equals number of files processed failed");
+        // TDOO: print to stderr
+        printf("Verification that number of files enqueued equals number of files processed failed");
         exit(-1);
     }
 
