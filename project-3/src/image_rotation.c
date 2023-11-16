@@ -69,13 +69,12 @@ request_entry_t dequeue() {
     it should output the threadId, requestNumber, file_name into the logfile and stdout.
 */
 void log_pretty_print(FILE *to_write, int threadId, int requestNumber, char *file_name) {
-    // TODO: mutex locks for fprintf, put everything in critical section
-
+    pthread_mutex_lock(&log_lock);
     fprintf(to_write, "[%d][%d][%s]\n", threadId, requestNumber, file_name);
     fflush(to_write);
     fprintf(stdout, "[%d][%d][%s]\n", threadId, requestNumber, file_name);
     fflush(stdout);
-
+    pthread_mutex_unlock(&log_lock);
 }
 
 
@@ -161,8 +160,7 @@ void *processing(void *args) {
     }
 
     if (num_files_enqueued != num_files_processed) {
-        // TDOO: print to stderr
-        printf("Verification that number of files enqueued equals number of files processed failed");
+        fprintf(stderr, "Verification that number of files enqueued equals number of files processed failed");
         exit(-1);
     }
 
