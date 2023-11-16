@@ -19,37 +19,38 @@ request_t requests_queue;
 bool requests_complete = false;
 
 //Number of requests that have been processed so far
-int num_requests_processed = 0;
+//int num_requests_processed = 0;
 
 //Output directory
-char *output_directory = ""
+char *output_directory = "";
 
+//What kind of locks will you need to make everything thread safe? [Hint you need multiple]
+pthread_mutex_t queue_lock = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t num_requests_lock = PTHREAD_MUTEX_INITIALIZER;
+//What kind of CVs will you need  (i.e. queue full, queue empty) [Hint you need multiple]
+pthread_cond_t prod_cond = PTHREAD_COND_INITIALIZER;
+pthread_cond_t cons_cond = PTHREAD_COND_INITIALIZER;
 
-void enqueue(request_entry_t entry){
+pthread_mutex_t *worker_done_lock;
+pthread_cond_t *worker_done_cv;
+
+void enqueue(request_entry_t entry) {
     int size = requests_queue.size;
     requests_queue.requests[size] = entry;//{.filename = entry.filename, .rotation_angle = entry.rotation_angle};
     requests_queue.size++;
 }
 
-request_entry_t dequeue(){
+request_entry_t dequeue() {
     request_entry_t res = requests_queue.requests[0];
 
-    for(int i=0; i<requests_queue.size-1; i++){
-        requests_queue.requests[i] = requests_queue.requests[i+1];
+    for (int i = 0; i < requests_queue.size - 1; i++) {
+        requests_queue.requests[i] = requests_queue.requests[i + 1];
     }
 
     requests_queue.size--;
 
     return res;
 }
-
-//What kind of locks will you need to make everything thread safe? [Hint you need multiple]
-pthread_mutex_t queue_lock = PTHREAD_MUTEX_INITIALIZER;
-pthread_mutex_t num_requests_lock = PTHREAD_MUTEX_INITIALIZER;
-//What kind of CVs will you need  (i.e. queue full, queue empty) [Hint you need multiple]
-pthread_cond_t prod_cond    = PTHREAD_COND_INITIALIZER;
-pthread_cond_t cons_cond    = PTHREAD_COND_INITIALIZER;
-
 
 // TODO : to consider in depth
 //How will you track the requests globally between threads? How will you ensure this is thread safe?
@@ -94,25 +95,29 @@ void log_pretty_print(FILE *to_write,
 */
 
 void *processing(void *args) {
+    // TODO: processing
+    // TODO: mutex locks for fprintf
+
     // Obtain image directory from args
-    processing_args_t *p_args = (processing_args_t *)args;
+    processing_args_t *p_args = (processing_args_t *) args;
     char *image_directory = p_args->image_directory;
     int num_worker_threads = p_args->num_worker_threads;
     int rotation_angle = p_args->rotation_angle;
 
     DIR *directory = opendir(image_directory);
-    if(directory == NULL){
+    if (directory == NULL) {
         perror("Failed to open directory");
         exit(1);
     }
     struct dirent *entry;
 
-    while((entry = readdir(directory)) != NULL){
-        char* entry_name = entry->d_name;
-        if(strcmp(entry_name, ".") == 0 || strcmp(entry_name, "..") == 0){
+    int num_files = 0;
+    while ((entry = readdir(directory)) != NULL) {
+        char *entry_name = entry->d_name;
+        if (strcmp(entry_name, ".") == 0 || strcmp(entry_name, "..") == 0) {
             continue;
         }
-        if(entry->d_type == DT_REG){
+        if (entry->d_type == DT_REG) {
             // TODO: make sure to free this (in worker after done processing)
             char *path_buf = malloc(BUFF_SIZE * sizeof(char));
             memset(path_buf, '\0', BUFF_SIZE * sizeof(char));
@@ -120,84 +125,139 @@ void *processing(void *args) {
             strcat(path_buf, "/");
             strcat(path_buf, entry->d_name);
 
-            request_entry_t request_entry = {.filename = path_buf, .rotation_angle = rotation_angle};
+            request_entry_t request_entry =
+                {.filename = path_buf, .rotation_angle = rotation_angle};
+
+            pthread_mutex_lock(&queue_lock);
+
+            // TODO: debug
+            printf("Producer locked queue_lock\n");
+
+            while (requests_queue.size == MAX_QUEUE_LEN) {
+                pthread_cond_wait(&prod_cond, &queue_lock);
+            }
+
             enqueue(request_entry);
 
-            // prints queue for debugging purposes
-            for (int i = 0; i < requests_queue.size; ++i) {
-                printf("requests_queue.requests[%d].filename = %s\n", i, requests_queue.requests[i].filename);
-            }
-            printf("\n");
-        }
+            pthread_cond_signal(&cons_cond);
+            pthread_mutex_unlock(&queue_lock);
 
+            ++num_files;
+
+            // prints queue for debugging purposes
+//            for (int i = 0; i < requests_queue.size; ++i) {
+//                printf("requests_queue.requests[%d].filename = %s\n",
+//                       i,
+//                       requests_queue.requests[i].filename);
+//            }
+//            printf("\n");
+        }
     }
-    if(closedir(directory) == -1){
+
+    if (closedir(directory) == -1) {
         perror("Failed to close directory");
         exit(-1);
     }
+
+    printf("Requests (directory traversal) complete\n"); // TODO: debug
+    requests_complete = true;
+    pthread_cond_broadcast(&cons_cond);
+
+    printf("Producer broadcasted and computing total\n"); // TODO: debug
+    int total = 0;
+    for (int i = 0; i < num_worker_threads; ++i) {
+        // TODO: why need lock? -Just Jeffrey being confused
+        printf("%d\n", i); // TODO: debug
+        pthread_mutex_lock(&worker_done_lock[i]);
+        pthread_cond_wait(&worker_done_cv[i], &worker_done_lock[i]);
+        pthread_mutex_unlock(&worker_done_lock[i]);
+
+        total += processed_count_array[i];
+    }
+
+    if (num_files != total) {
+        // TODO: what to do if verification fails?
+        exit(1);
+    }
+
+    pthread_cond_signal(&cons_cond);
 }
 
 /*
     1: The worker threads takes an int ID as a parameter
 
-    2: The Worker thread will block(pthread_cond_wait) for a condition variable that there is a requests in the queue. 
+    2: The Worker thread will block(pthread_cond_wait) for a condition variable that there is a requests in the queue.
 
     3: The Worker threads will also block(pthread_cond_wait) once the queue is empty and wait for a signal to either exit or do work.
 
-    4: The Worker thread will processes request from the queue while maintaining synchronization using lock and unlock. 
+    4: The Worker thread will processes request from the queue while maintaining synchronization using lock and unlock.
 
-    5: The worker thread will write the data back to the given output dir as passed in main. 
+    5: The worker thread will write the data back to the given output dir as passed in main.
 
-    6:  The Worker thread will log the request from the queue while maintaining synchronization using lock and unlock.  
+    6:  The Worker thread will log the request from the queue while maintaining synchronization using lock and unlock.
 
     8: Hint the worker thread should be in a While(1) loop since a worker thread can process multiple requests and It will have two while loops in total
         that is just a recommendation feel free to implement it your way :)
-    9: You may need different lock depending on the job.  
+    9: You may need different lock depending on the job.
 
 */
 
 //TODO : consider making a worker_args_t struct instead of using a global variable for output directory and the like
 void *worker(void *args) {
-    // Intermediate Submission : 
+    // Intermediate Submission :
     // For intermediate submission, print thread ID and exit:
     // printf("Thread ID is : %d\n", *((int *)args));
     // fflush(stdout);
     // exit(0);
-    int threadId = *((int *)args);
-    int count_of_processed_requests = 0;
+    int threadId = *((int *) args);
     request_entry_t cur_request;
 
-    while(true){
+    int processed_count = 0;
+    while (true) {
         pthread_mutex_lock(&queue_lock);
-        while(requests_queue.size == 0){
-            if(requests_complete){
-                //Wait for the broadcast signal
-		pthread_cond_wait(&cons_cond, &queue_lock);
+        printf("Consumer locked queue_lock\n"); // TODO: debug
+        while (requests_queue.size == 0) {
+            if (requests_complete) {
+                pthread_mutex_unlock(&queue_lock);
 
-		pthread_mutex_unlock(&queue_lock);
-		pthread_exit();
+                // TODO: why need lock?
+                pthread_mutex_lock(&worker_done_lock[threadId]);
+                processed_count_array[threadId] = processed_count;
+
+                printf("Consumer signalled done\n"); // TODO: debug
+                pthread_cond_signal(&worker_done_cv[threadId]);
+
+                pthread_cond_wait(&cons_cond, &worker_done_lock[threadId]);
+                pthread_mutex_unlock(&worker_done_lock[threadId]);
+
+                printf("Consumer exiting\n"); // TODO: debug
+                pthread_exit(NULL);
             }
+            printf("Consumer waiting on cons_cond\n"); // TODO: debug
             pthread_cond_wait(&cons_cond, &queue_lock);
         }
 
-	//#####################CONSUMER CODE#######################################
+        //#####################CONSUMER CODE#######################################
 
-	//Take an element off of the queue & signal to the processing thread about a new empty slot before unlocking
+        //Take an element off of the queue & signal to the processing thread about a new empty slot before unlocking
         cur_request = dequeue();
-	pthread_cond_signal(&prod_cond);
-	pthread_mutex_unlock(&queue_lock);
+        pthread_cond_signal(&prod_cond);
+        printf("Consumer unlocked queue_lock\n"); // TODO: debug
+        pthread_mutex_unlock(&queue_lock);
 
         /*
         Stbi_load takes:
             A file name, int pointer for width, height, and bpp
         */
 
-      //TODO : The buf size is arbitrary
+        //TODO : The buf size is arbitrary
         int width = 0;
         int height = 0;
         int bpp = 0;
-        uint8_t* image_result = stbi_load(cur_request.filename, &width, &height, &bpp,  CHANNEL_NUM);
-        uint8_t **result_matrix = (uint8_t **) malloc(sizeof(uint8_t *) * width);
+        uint8_t *image_result =
+            stbi_load(cur_request.filename, &width, &height, &bpp, CHANNEL_NUM);
+        uint8_t
+            **result_matrix = (uint8_t **) malloc(sizeof(uint8_t *) * width);
         uint8_t **img_matrix = (uint8_t **) malloc(sizeof(uint8_t *) * width);
         for (int i = 0; i < width; i++) {
             result_matrix[i] = (uint8_t *) malloc(sizeof(uint8_t) * height);
@@ -218,19 +278,19 @@ void *worker(void *args) {
         ////TODO: you should be ready to call flip_left_to_right or flip_upside_down depends on the angle(Should just be 180 or 270)
         //both take image matrix from linear_to_image, and result_matrix to store data, and width and height.
         //Hint figure out which function you will call.
-        if(cur_request.rotation_angle == 180){
+        if (cur_request.rotation_angle == 180) {
             flip_left_to_right(img_matrix, result_matrix, width, height);
+        } else {
+            flip_upside_down(img_matrix, result_matrix, width, height);
         }
-        else{
-            flip_upside_down(img_matrix, result_matrix ,width, height);
-        }
-    
-        uint8_t* img_array = malloc(sizeof(uint8_t) * width * height); ///Hint malloc using sizeof(uint8_t) * width * height
+
+        uint8_t *img_array = malloc(sizeof(uint8_t) * width
+                                        * height); ///Hint malloc using sizeof(uint8_t) * width * height
 
 
         ///TODO: you should be ready to call flatten_mat function, using result_matrix
         //img_arry and width and height;
-	//Flattening image to 1-dimensional data structure
+        //Flattening image to 1-dimensional data structure
         flatten_mat(result_matrix, img_array, width, height);
 
 
@@ -246,24 +306,30 @@ void *worker(void *args) {
         //height
         //img_array
         //width*CHANNEL_NUM
-        stbi_write_png(path_buf, width, height, CHANNEL_NUM, img_array, width*CHANNEL_NUM);
+        stbi_write_png(path_buf,
+                       width,
+                       height,
+                       CHANNEL_NUM,
+                       img_array,
+                       width * CHANNEL_NUM);
 
         //Update the processed_count_array
-	//Don't need to lock this since individual threads access their own parts of the array
-        processed_count_array[threadId] +=1 ;
+        //Don't need to lock this since individual threads access their own parts of the array
+        ++processed_count;
 
-	//Update number of processed images
-	//num_requests is a shared global variable: needs to be locked
-	pthread_mutex_lock(&num_requests_lock);
-        num_requests_processed +=1;
-	pthread_mutex_unlock(&num_requests_lock);
+        // TODO: delete
+        //Update number of processed images
+        //num_requests is a shared global variable: needs to be locked
+//        pthread_mutex_lock(&num_requests_lock);
+//        num_requests_processed += 1;
+//        pthread_mutex_unlock(&num_requests_lock);
 
         //TODO : is locking even needed? (protect logFile from raise conditions)
-	log_pretty_print(logfile, threadId, processed_count_array[threadId], path_buf);
-        //fprintf(logfile, "[%d][%d][%s]\n", threadId, processed_count_array[threadId], path_buf);
-        //fflush(logfile);
-        //fprintf(stdout, "[%d][%d][%s]\n", threadId, processed_count_array[threadId], path_buf);
-        //fflush(stdout);
+        // TODO: lock logfile
+        log_pretty_print(logfile,
+                         threadId,
+                         processed_count_array[threadId],
+                         path_buf);
     }
 
 /*
@@ -294,8 +360,8 @@ int main(int argc, char *argv[]) {
     }
 
     // TODO:
-    
-    requests_queue.requests = malloc(MAX_QUEUE_LEN*(sizeof(request_entry_t)));
+
+    requests_queue.requests = malloc(MAX_QUEUE_LEN * (sizeof(request_entry_t)));
     requests_queue.size = 0;
 
     char *image_directory = argv[1];
@@ -304,8 +370,20 @@ int main(int argc, char *argv[]) {
     int rotation_angle = atoi(argv[4]);
 
     //intialise the array that keeps track of number of requests processed by each worker thread
-    processed_count_array = malloc((sizeof(int)) * num_worker_threads);
-    memset(processed_count_array, 0, (sizeof(int)) * num_worker_threads);
+    processed_count_array = malloc(sizeof(int) * num_worker_threads);
+    memset(processed_count_array, 0, sizeof(int) * num_worker_threads);
+
+    worker_done_lock = malloc(num_worker_threads * sizeof(pthread_mutex_t));
+    for (int i = 0; i < num_worker_threads; ++i) {
+        // TODO: error check
+        pthread_mutex_init(&worker_done_lock[i], NULL);
+    }
+
+    worker_done_cv = malloc(num_worker_threads * sizeof(pthread_cond_t));
+    for (int i = 0; i < num_worker_threads; ++i) {
+        // TODO: error check
+        pthread_cond_init(&worker_done_cv[i], NULL);
+    }
 
     logfile = fopen(LOG_FILE_NAME, "w");
 
@@ -314,10 +392,10 @@ int main(int argc, char *argv[]) {
     processing_args.num_worker_threads = num_worker_threads;
     processing_args.rotation_angle = rotation_angle;
 
-    if( pthread_create(&processing_thread,
-                   NULL,
-                   (void *) processing,
-                   (void *) &processing_args)    != 0){
+    if (pthread_create(&processing_thread,
+                       NULL,
+                       (void *) processing,
+                       (void *) &processing_args) != 0) {
         fprintf(stderr, "Error creating processing thread\n");
     }
 
@@ -326,16 +404,16 @@ int main(int argc, char *argv[]) {
 
     for (int i = 0; i < num_worker_threads; ++i) {
         args[i] = i;
-        if( pthread_create(&worker_threads[i],
-                       NULL,
-                       (void *) worker,
-                       (void *) &args[i])    != 0){
+        if (pthread_create(&worker_threads[i],
+                           NULL,
+                           (void *) worker,
+                           (void *) &args[i]) != 0) {
             fprintf(stderr, "Error creating worker thread #%d\n", i);
         }
     }
 
     // TODO: pthread_join
-    for(int j=0; j<num_worker_threads; j++){
+    for (int j = 0; j < num_worker_threads; j++) {
         pthread_join(worker_threads[j], NULL);
     }
     pthread_join(processing_thread, NULL);
