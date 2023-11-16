@@ -20,43 +20,29 @@ bool requests_complete = false;
 bool *will_term;
 bool ready_for_term = false;
 
-//Number of requests that have been processed so far
-//int num_requests_processed = 0;
-
 //Output directory
 char *output_directory = "";
 
 //What kind of locks will you need to make everything thread safe? [Hint you need multiple]
 pthread_mutex_t queue_lock = PTHREAD_MUTEX_INITIALIZER;
-pthread_mutex_t num_requests_lock = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t term_lock = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t log_lock = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t *worker_done_lock;
+
 //What kind of CVs will you need  (i.e. queue full, queue empty) [Hint you need multiple]
 pthread_cond_t prod_cond = PTHREAD_COND_INITIALIZER;
 pthread_cond_t cons_cond = PTHREAD_COND_INITIALIZER;
-
-pthread_mutex_t *worker_done_lock;
-pthread_cond_t *worker_done_cv;
-
-pthread_mutex_t term_lock = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t terminate = PTHREAD_COND_INITIALIZER;
-
-pthread_mutex_t log_lock = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t *worker_done_cv;
 
 void enqueue(request_entry_t entry) {
     int size = requests_queue.size;
-    requests_queue.requests[size] = entry;//{.filename = entry.filename, .rotation_angle = entry.rotation_angle};
-
-    printf("Added QueueEntry#%d, Name:%s, Angle:%d\n", requests_queue.size, requests_queue.requests[size].filename, requests_queue.requests[size].rotation_angle);
-    fflush(stdout);
-
+    requests_queue.requests[size] = entry;
     requests_queue.size++;
 }
 
 request_entry_t dequeue() {
-    int size = requests_queue.size;
     request_entry_t res = requests_queue.requests[0];
-
-    printf("Removed size=%d, Name:%s, Angle:%d\n", requests_queue.size, requests_queue.requests[size].filename, requests_queue.requests[size].rotation_angle);
-    fflush(stdout);
 
     for (int i = 0; i < requests_queue.size - 1; i++) {
         requests_queue.requests[i] = requests_queue.requests[i + 1];
@@ -84,10 +70,9 @@ request_entry_t dequeue() {
     The function output: 
     it should output the threadId, requestNumber, file_name into the logfile and stdout.
 */
-void log_pretty_print(FILE *to_write,
-                      int threadId,
-                      int requestNumber,
-                      char *file_name) {
+void log_pretty_print(FILE *to_write, int threadId, int requestNumber, char *file_name) {
+    // TODO: mutex locks for fprintf
+
     fprintf(to_write, "[%d][%d][%s]\n", threadId, requestNumber, file_name);
     fflush(to_write);
     fprintf(stdout, "[%d][%d][%s]\n", threadId, requestNumber, file_name);
@@ -110,7 +95,6 @@ void log_pretty_print(FILE *to_write,
 */
 
 void *processing(void *args) {
-    // TODO: processing
     // TODO: mutex locks for fprintf
 
     // Obtain image directory from args
@@ -124,16 +108,16 @@ void *processing(void *args) {
         perror("Failed to open directory");
         exit(1);
     }
-    struct dirent *entry;
 
-    int num_files = 0;
+    struct dirent *entry;
+    int num_files_enqueued = 0;
+
     while ((entry = readdir(directory)) != NULL) {
         char *entry_name = entry->d_name;
         if (strcmp(entry_name, ".") == 0 || strcmp(entry_name, "..") == 0) {
             continue;
         }
         if (entry->d_type == DT_REG) {
-            // TODO: make sure to free this (in worker after done processing)
             char *path_buf = malloc(BUFF_SIZE * sizeof(char));
             memset(path_buf, '\0', BUFF_SIZE * sizeof(char));
             strcpy(path_buf, image_directory);
@@ -144,28 +128,16 @@ void *processing(void *args) {
 
             pthread_mutex_lock(&queue_lock);
 
-            // TODO: debug
-            printf("Producer added following entry to queue\n");
-
             while (requests_queue.size == MAX_QUEUE_LEN) {
                 pthread_cond_wait(&prod_cond, &queue_lock);
             }
 
             enqueue(request_entry);
 
-            
             pthread_cond_signal(&cons_cond);
             pthread_mutex_unlock(&queue_lock);
 
-            ++num_files;
-
-            // prints queue for debugging purposes
-//            for (int i = 0; i < requests_queue.size; ++i) {
-//                printf("requests_queue.requests[%d].filename = %s\n",
-//                       i,
-//                       requests_queue.requests[i].filename);
-//            }
-//            printf("\n");
+            ++num_files_enqueued;
         }
     }
 
@@ -174,44 +146,32 @@ void *processing(void *args) {
         exit(-1);
     }
 
-    //what if worker thread aren't done yet?
-    //No longer putting things on the queue
-    //TODO: check if broadcasting correct: (request_complete)
-    printf("Requests (directory traversal) complete\n"); // TODO: debug --> we need to wait for all workers 1st, compare #processes files, then send broadcast
     requests_complete = true;
     pthread_cond_broadcast(&cons_cond);
 
-    printf("Producer broadcasted and computing total\n"); // TODO: debug
-    int total = 0;
+    int num_files_processed = 0;
     for (int i = 0; i < num_worker_threads; ++i) {
-        // TODO: why need lock? -Just Jeffrey being confused
-        printf("Thread%d is ready to terminate\n", i); // TODO: debug
-
-        //use a while !will_terminate[i] (signalling b4 waiting)
         pthread_mutex_lock(&worker_done_lock[i]);
 
-        while(!will_term[i]){
+        //use a while !will_terminate[i] (signalling b4 waiting)
+        while (!will_term[i]) {
             pthread_cond_wait(&worker_done_cv[i], &worker_done_lock[i]);
         }
 
         pthread_mutex_unlock(&worker_done_lock[i]);
 
-        total += processed_count_array[i];
+        num_files_processed += processed_count_array[i];
     }
 
-    if (num_files != total) {
-        // TODO: what to do if verification fails?
-        exit(1);
+    if (num_files_enqueued != num_files_processed) {
+        perror("Verification that number of files enqueued equals number of files processed failed");
+        exit(-1);
     }
 
-    printf("Processor will send termination signal\n");
     pthread_mutex_lock(&term_lock);
-
     ready_for_term = true;
     pthread_cond_broadcast(&terminate);
-
     pthread_mutex_unlock(&term_lock);
-    printf("Processor will terminate\n");
 }
 
 /*
@@ -233,13 +193,12 @@ void *processing(void *args) {
 
 */
 
-//TODO : consider making a worker_args_t struct instead of using a global variable for output directory and the like
 void *worker(void *args) {
-    // Intermediate Submission :
-    // For intermediate submission, print thread ID and exit:
+    // Intermediate Submission:
     // printf("Thread ID is : %d\n", *((int *)args));
     // fflush(stdout);
     // exit(0);
+
     int threadId = *((int *) args);
     request_entry_t cur_request;
 
@@ -262,7 +221,7 @@ void *worker(void *args) {
                 pthread_cond_signal(&worker_done_cv[threadId]);
 
                 //Wait for termination signal --> bool for termination sent
-                while(!ready_for_term){
+                while (!ready_for_term) {
                     pthread_cond_wait(&terminate, &worker_done_lock[threadId]);
                 }
                 pthread_mutex_unlock(&worker_done_lock[threadId]);
@@ -276,8 +235,6 @@ void *worker(void *args) {
         //#####################CONSUMER CODE#######################################
 
         //Take an element off of the queue & signal to the processing thread about a new empty slot before unlocking
-        //processed_count++;
-        //printf("Thread%d | Processed count = %d\n", threadId, processed_count);
         cur_request = dequeue();
         pthread_cond_signal(&prod_cond);
         printf("Thread%d unlocked queue_lock\n", threadId); // TODO: debug
@@ -291,7 +248,7 @@ void *worker(void *args) {
         Stbi_load takes:
             A file name, int pointer for width, height, and bpp
         */
-        
+
         int width = 0;
         int height = 0;
         int bpp = 0;
@@ -343,13 +300,13 @@ void *worker(void *args) {
 
 
         ///TODO: You should be ready to call stbi_write_png using:
-        //New path to where you wanna save the file,
-        //TODO : make 2048 a constant
         char *path_buf = malloc(BUFF_SIZE * sizeof(char));
         memset(path_buf, '\0', BUFF_SIZE * sizeof(char));
         strcpy(path_buf, output_directory);
         strcat(path_buf, "/");
         strcat(path_buf, get_filename_from_path(cur_request.filename));
+
+        //New path to where you wanna save the file,
         //Width
         //height
         //img_array
@@ -380,6 +337,9 @@ void *worker(void *args) {
                          processed_count_array[threadId],
                          path_buf);
         pthread_mutex_unlock(&log_lock);
+
+        free(cur_request.filename);
+        free(path_buf);
     }
 }
 
@@ -410,22 +370,24 @@ int main(int argc, char *argv[]) {
     int rotation_angle = atoi(argv[4]);
 
     //intialise the array that keeps track of number of requests processed by each worker thread
-    processed_count_array = (int *)malloc(sizeof(int) * num_worker_threads);
+    processed_count_array = (int *) malloc(sizeof(int) * num_worker_threads);
     memset(processed_count_array, 0, sizeof(int) * num_worker_threads);
 
-    worker_done_lock = (pthread_mutex_t *)malloc(num_worker_threads * sizeof(pthread_mutex_t));
+    worker_done_lock = (pthread_mutex_t *) malloc(
+        num_worker_threads * sizeof(pthread_mutex_t));
     for (int i = 0; i < num_worker_threads; ++i) {
         // TODO: error check
         pthread_mutex_init(&worker_done_lock[i], NULL);
     }
 
-    worker_done_cv = (pthread_cond_t *)malloc(num_worker_threads * sizeof(pthread_cond_t));
+    worker_done_cv =
+        (pthread_cond_t *) malloc(num_worker_threads * sizeof(pthread_cond_t));
     for (int i = 0; i < num_worker_threads; ++i) {
         // TODO: error check
         pthread_cond_init(&worker_done_cv[i], NULL);
     }
 
-    will_term = (bool *)malloc(num_worker_threads * sizeof(bool));
+    will_term = (bool *) malloc(num_worker_threads * sizeof(bool));
     memset(will_term, false, num_worker_threads * sizeof(bool));
 
     logfile = fopen(LOG_FILE_NAME, "w");
