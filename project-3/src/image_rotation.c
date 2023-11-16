@@ -136,8 +136,8 @@ void *processing(void *args) {
             // TODO: make sure to free this (in worker after done processing)
             char *path_buf = malloc(BUFF_SIZE * sizeof(char));
             memset(path_buf, '\0', BUFF_SIZE * sizeof(char));
-            //strcpy(path_buf, image_directory);
-            //strcat(path_buf, "/");
+            strcpy(path_buf, image_directory);
+            strcat(path_buf, "/");
             strcat(path_buf, entry->d_name);
 
             request_entry_t request_entry = {.filename = path_buf, .rotation_angle = rotation_angle};
@@ -153,7 +153,7 @@ void *processing(void *args) {
 
             enqueue(request_entry);
 
-	    
+            
             pthread_cond_signal(&cons_cond);
             pthread_mutex_unlock(&queue_lock);
 
@@ -187,12 +187,12 @@ void *processing(void *args) {
         // TODO: why need lock? -Just Jeffrey being confused
         printf("Thread%d is ready to terminate\n", i); // TODO: debug
 
-	//use a while !will_terminate[i] (signalling b4 waiting)
+        //use a while !will_terminate[i] (signalling b4 waiting)
         pthread_mutex_lock(&worker_done_lock[i]);
 
-	while(!will_term[i]){
+        while(!will_term[i]){
             pthread_cond_wait(&worker_done_cv[i], &worker_done_lock[i]);
-	}
+        }
 
         pthread_mutex_unlock(&worker_done_lock[i]);
 
@@ -255,16 +255,16 @@ void *worker(void *args) {
                 // TODO: why need lock?
                 pthread_mutex_lock(&worker_done_lock[threadId]);
                 //processed_count_array[threadId] = processed_count;
-		will_term[threadId] = true;
+                will_term[threadId] = true;
 
-		//Signal to processor thread that this worker is waiting to terminate
+                //Signal to processor thread that this worker is waiting to terminate
                 printf("Consumer signalled done\n"); // TODO: debug
                 pthread_cond_signal(&worker_done_cv[threadId]);
 
-		//Wait for termination signal --> bool for termination sent
-		while(!ready_for_term){
+                //Wait for termination signal --> bool for termination sent
+                while(!ready_for_term){
                     pthread_cond_wait(&terminate, &worker_done_lock[threadId]);
-		}
+                }
                 pthread_mutex_unlock(&worker_done_lock[threadId]);
                 printf("Consumer exiting\n"); // TODO: debug
                 pthread_exit(NULL);
@@ -277,29 +277,26 @@ void *worker(void *args) {
 
         //Take an element off of the queue & signal to the processing thread about a new empty slot before unlocking
         //processed_count++;
-	//printf("Thread%d | Processed count = %d\n", threadId, processed_count);
-	cur_request = dequeue();
+        //printf("Thread%d | Processed count = %d\n", threadId, processed_count);
+        cur_request = dequeue();
         pthread_cond_signal(&prod_cond);
         printf("Thread%d unlocked queue_lock\n", threadId); // TODO: debug
         pthread_mutex_unlock(&queue_lock);
 
-	//pthread_mutex_lock(&worker_done_lock[threadId]);
-	processed_count_array[threadId]++;
-	//pthread_mutex_unlock(&worker_done_lock[threadId]);
+        //pthread_mutex_lock(&worker_done_lock[threadId]);
+        processed_count_array[threadId]++;
+        //pthread_mutex_unlock(&worker_done_lock[threadId]);
 
         /*
         Stbi_load takes:
             A file name, int pointer for width, height, and bpp
         */
-
-        //TODO : The buf size is arbitrary
+        
         int width = 0;
         int height = 0;
         int bpp = 0;
-        uint8_t *image_result =
-            stbi_load(cur_request.filename, &width, &height, &bpp, CHANNEL_NUM);
-        uint8_t
-            **result_matrix = (uint8_t **) malloc(sizeof(uint8_t *) * width);
+        uint8_t *image_result = stbi_load(cur_request.filename, &width, &height, &bpp, CHANNEL_NUM);
+        uint8_t **result_matrix = (uint8_t **) malloc(sizeof(uint8_t *) * width);
         uint8_t **img_matrix = (uint8_t **) malloc(sizeof(uint8_t *) * width);
         for (int i = 0; i < width; i++) {
             result_matrix[i] = (uint8_t *) malloc(sizeof(uint8_t) * height);
@@ -326,14 +323,23 @@ void *worker(void *args) {
             flip_upside_down(img_matrix, result_matrix, width, height);
         }
 
-        uint8_t *img_array = malloc(sizeof(uint8_t) * width
-                                        * height); ///Hint malloc using sizeof(uint8_t) * width * height
+        uint8_t *img_array = malloc(sizeof(uint8_t) * width * height); ///Hint malloc using sizeof(uint8_t) * width * height
+        memset(img_array, 0, width * height * sizeof(uint8_t));
 
 
         ///TODO: you should be ready to call flatten_mat function, using result_matrix
         //img_arry and width and height;
         //Flattening image to 1-dimensional data structure
         flatten_mat(result_matrix, img_array, width, height);
+
+        // TODO: debug
+        printf("FLATTENED MAT\n");
+        printf("%d, %d\n", width, height);
+        for (int i = 0; i < width * height; ++i) {
+            printf("%d ", img_array[i]);
+        }
+        printf("\n");
+        fflush(stdout);
 
 
         ///TODO: You should be ready to call stbi_write_png using:
@@ -343,7 +349,7 @@ void *worker(void *args) {
         memset(path_buf, '\0', BUFF_SIZE * sizeof(char));
         strcpy(path_buf, output_directory);
         strcat(path_buf, "/");
-        strcat(path_buf, cur_request.filename);
+        strcat(path_buf, get_filename_from_path(cur_request.filename));
         //Width
         //height
         //img_array
@@ -373,7 +379,7 @@ void *worker(void *args) {
                          threadId,
                          processed_count_array[threadId],
                          path_buf);
-	pthread_mutex_unlock(&log_lock);
+        pthread_mutex_unlock(&log_lock);
     }
 }
 
@@ -395,7 +401,6 @@ int main(int argc, char *argv[]) {
     }
 
     // TODO:
-
     requests_queue.requests = malloc(MAX_QUEUE_LEN * (sizeof(request_entry_t)));
     requests_queue.size = 0;
 
