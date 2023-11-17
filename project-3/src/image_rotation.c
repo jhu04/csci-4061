@@ -78,12 +78,20 @@ request_entry_t dequeue() {
     it should output the threadId, requestNumber, file_name into the logfile and stdout.
 */
 void log_pretty_print(FILE *to_write, int threadId, int requestNumber, char *file_name) {
-    pthread_mutex_lock(&log_lock);
+    if(pthread_mutex_lock(&log_lock) != 0){
+	perror("Failed to lock mutex when 'pretty printing'");
+	exit(-1);
+    }
+
     fprintf(to_write, "[%d][%d][%s]\n", threadId, requestNumber, file_name);
     fflush(to_write);
     fprintf(stdout, "[%d][%d][%s]\n", threadId, requestNumber, file_name);
     fflush(stdout);
-    pthread_mutex_unlock(&log_lock);
+
+    if(pthread_mutex_unlock(&log_lock) != 0){
+        perror("Failed to unlock mutex when 'pretty printing'");
+        exit(-1);
+    }
 }
 
 
@@ -111,7 +119,7 @@ void *processing(void *args) {
     //Open image directory for traversal
     DIR *directory = opendir(image_directory);
     if (directory == NULL) {
-        perror("Failed to open directory");
+        perror("Processor failed to open directory");
         exit(1);
     }
 
@@ -136,12 +144,14 @@ void *processing(void *args) {
             request_entry_t request_entry = {.filename = path_buf, .rotation_angle = rotation_angle};
 
             if(pthread_mutex_lock(&queue_lock) != 0){
+	        perror("Processor failed to lock queue lock");
 		exit(-1);
 	    }
 
 	    //Wait for an empty slot
             while (requests_queue.size == MAX_QUEUE_LEN) {
                 if(pthread_cond_wait(&prod_cond, &queue_lock) != 0){
+        	    perror("Processor failed to wait for empty slot");
 		    exit(-1);
 		}
             }
@@ -149,10 +159,12 @@ void *processing(void *args) {
 	    //Add entry to queue and signal to worker about new entry
             enqueue(request_entry);
             if(pthread_cond_signal(&cons_cond) != 0){
+        	perror("Processor failed to signal for newly created entry");
 		exit(-1);
 	    }
 
             if(pthread_mutex_unlock(&queue_lock) != 0){
+        	perror("Processor failed to unlock queue lock");
 		exit(-1);
 	    }
 
@@ -161,13 +173,14 @@ void *processing(void *args) {
     }
 
     if (closedir(directory) == -1) {
-        perror("Failed to close directory");
+        perror("Processor failed to close directory");
         exit(-1);
     }
 
     //Finished traversing directory... Wake up blocked workers & inform unblocked workers
     requests_complete = true;
     if(pthread_cond_broadcast(&cons_cond) != 0){
+        perror("Processor failed to broadcast message about no longer placing new entries into queue");
 	exit(-1);
     }
 
@@ -176,16 +189,19 @@ void *processing(void *args) {
     int num_files_processed = 0;
     for (int i = 0; i < num_worker_threads; ++i) {
         if(pthread_mutex_lock(&worker_done_lock[i]) != 0){
+            perror("Processor failed to lock a worker_done_lock");
 	    exit(-1);
 	}
 
         while (!will_term[i]) {
             if(pthread_cond_wait(&worker_done_cv[i], &worker_done_lock[i]) != 0){
+        	perror("Processor failed to wait for worker termination acknowledgement");
 		exit(-1);
 	    }
         }
 
         if(pthread_mutex_unlock(&worker_done_lock[i]) != 0){
+        perror("Processor failed to unlock a worker_done_lock");
 	    exit(-1);
 	}
 
@@ -200,15 +216,18 @@ void *processing(void *args) {
 
     //Broadcast termination signal to workers
     if(pthread_mutex_lock(&term_lock) != 0){
+        perror("Processor failed to lock term_lock");
 	exit(-1);
     }
 
     ready_for_term = true;
 
     if(pthread_cond_broadcast(&terminate) != 0){
+        perror("Processor failed to broadcast termination signal");
 	exit(-1);
     }
     if(pthread_mutex_unlock(&term_lock) != 0){
+        perror("Processor failed to unlock term_lock");
 	exit(-1);
     }
 }
@@ -241,40 +260,57 @@ void *worker(void *args) {
     int threadId = *((int *) args);
     request_entry_t cur_request;
 
+    //Running worker thread
     while (true) {
+	//Entering critical section accessing/modifying queue resources
         if(pthread_mutex_lock(&queue_lock) != 0){
+            perror("Worker failed to lock queue_lock");
 	    exit(-1);
 	}
+
+	//Handle case when worker needs to wait on an empty request queue
         while (requests_queue.size == 0) {
+	    //Handle case when processor signalled that no more new entries in request queue
             if (requests_complete) {
+		//exiting critical section for queue resources
                 if(pthread_mutex_unlock(&queue_lock) != 0){
+            	    perror("Worker failed to unlock queue_lock");
 		    exit(-1);
 		}
 
                 if(pthread_mutex_lock(&worker_done_lock[threadId]) != 0){
+            	    perror("Worker failed to lock worker_done_lock");
 		    exit(-1);
 		}
 
+		//Flag used if worker sends acknowledgement signal before processor is waiting on each worker
                 will_term[threadId] = true;
 
                 //Signal to processor thread that this worker is waiting to terminate
                 if(pthread_cond_signal(&worker_done_cv[threadId]) != 0){
+            	    perror("Worker failed to signal acknowledgement to processor");
 		    exit(-1);
 		}
 
                 //Wait for termination signal --> bool for termination sent
                 while (!ready_for_term) {
                     if(pthread_cond_wait(&terminate, &worker_done_lock[threadId]) != 0){
+            		perror("Worker failed to wait for termination signal");
 			exit(-1);
 		    }
                 }
                 if(pthread_mutex_unlock(&worker_done_lock[threadId]) != 0){
+            	    perror("Worker failed to unlock worker_done_lock");
 		    exit(-1);
 		}
+
+		//Terminate :)
                 pthread_exit(NULL);
             }
 
+	    //Wait for processor to send signal for new entry or signal for no more new entries
             if(pthread_cond_wait(&cons_cond, &queue_lock) != 0){
+            	perror("Worker failed to wait for processor to signal new entry or no more new entries");
 		exit(-1);
 	    }
         }
@@ -284,13 +320,16 @@ void *worker(void *args) {
         //Take an element off of the queue & signal to the processing thread about a new empty slot before unlocking
         cur_request = dequeue();
         if(pthread_cond_signal(&prod_cond) != 0){
+            perror("Worker failed to signal empty slot to processor");
 	    exit(-1);
 	}
 
         if(pthread_mutex_unlock(&queue_lock) != 0){
+            perror("Worker failed to unlock queue_lock");
 	    exit(-1);
 	}
 
+	//Update the number of files this thread processed
 	//Mutex lock not used because different threads access different indexes of array
         processed_count_array[threadId]++;
 
@@ -367,9 +406,17 @@ void *worker(void *args) {
                          path_buf);
 
 
+	//Freeing memory to be no longer used
         free(cur_request.filename);
         free(path_buf);
         free(img_array);
+	for (int i = 0; i < width; i++) {
+            free(result_matrix[i]);
+            free(img_matrix[i]);
+        }
+	free(result_matrix);
+	free(img_matrix);
+	free(image_result);
     }
 }
 
@@ -388,9 +435,11 @@ int main(int argc, char *argv[]) {
                 "Usage: File Path to image dirctory, File path to output dirctory, number of worker thread, and Rotation angle\n");
     }
 
+    //Initializing request queue
     requests_queue.requests = malloc(MAX_QUEUE_LEN * (sizeof(request_entry_t)));
     requests_queue.size = 0;
 
+    //Parse command line arguments
     char *image_directory = argv[1];
     output_directory = argv[2];
     int num_worker_threads = atoi(argv[3]);
@@ -400,6 +449,7 @@ int main(int argc, char *argv[]) {
     processed_count_array = (int *) malloc(sizeof(int) * num_worker_threads);
     memset(processed_count_array, 0, sizeof(int) * num_worker_threads);
 
+    //list of mutexes for each worker when acknowledging finished processing
     worker_done_lock = (pthread_mutex_t *) malloc(num_worker_threads * sizeof(pthread_mutex_t));
     for (int i = 0; i < num_worker_threads; ++i) {
         // TODO: error check
@@ -409,6 +459,7 @@ int main(int argc, char *argv[]) {
 	}
     }
 
+    //list of conditional variables for each worker when acknowledging finished processing
     worker_done_cv = (pthread_cond_t *) malloc(num_worker_threads * sizeof(pthread_cond_t));
     for (int i = 0; i < num_worker_threads; ++i) {
         // TODO: error check
@@ -418,9 +469,11 @@ int main(int argc, char *argv[]) {
 	}
     }
 
+    //list of bool for each worker when acknowledging finished processing
     will_term = (bool *) malloc(num_worker_threads * sizeof(bool));
     memset(will_term, false, num_worker_threads * sizeof(bool));
 
+    //opening logfile
     logfile = fopen(LOG_FILE_NAME, "w");
 
     if(logfile == NULL){
@@ -428,6 +481,7 @@ int main(int argc, char *argv[]) {
 	exit(-1);
     }
 
+    //Start processing thread
     processing_args_t processing_args;
     processing_args.image_directory = image_directory;
     processing_args.num_worker_threads = num_worker_threads;
@@ -441,6 +495,7 @@ int main(int argc, char *argv[]) {
 	exit(-1);
     }
 
+    //Start worker threads
     worker_threads = malloc(num_worker_threads * sizeof(pthread_t));
     int args[num_worker_threads];
 
@@ -468,11 +523,17 @@ int main(int argc, char *argv[]) {
 	exit(-1);
     }
 
+    //Close log file
     if(fclose(logfile) != 0){
 	perror("Failed to close log file");
 	exit(-1);
     }
 
+    //Free unused memory
     free(worker_threads);
     free(requests_queue.requests);
+    free(processed_count_array);
+    free(worker_done_lock);
+    free(worker_done_cv);
+    free(will_term);
 }
