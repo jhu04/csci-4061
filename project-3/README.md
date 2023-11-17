@@ -7,7 +7,7 @@ Group member names and x500s:
 
 The name of the CSELabs computer that you tested your code on: csel-kh1260-03.cselabs.umn.edu
 
-Any changes you made to the Makefile or existing files that would affect grading: N/A
+Any changes you made to the Makefile or existing files that would affect grading: Added a few commands to attempt section 2.7
 
 Plan outlining individual contributions for each member of your group:
 * We plan to meet on Zoom and have one person share their screen while the others assist by reviewing, looking up information in the writeup/documentation, etc.
@@ -32,13 +32,49 @@ Condition variables:
 
 Pseudocode:
 ```
+processor:
+    while there is a reg file (assumed to be png) found
+	lock on the queue
+        wait for empty slot 
+	add the file to queue
+	unlock on queue
+
+    broadcast to workers that no more things added to queue **
+
+    for each worker thread **
+	lock on the worker's unique mutex
+	wait for the worker's acknowledgement 
+	unlock on the worker's unique mutex
+	update the number of total files processed
+
+    compare number of enqueued files and number of files processed 
+
+    broadcast termination signal **
+
 worker:
     ...
     
     while queue empty:
-        // termination
-        if processing thread done (via orders_complete variable)
-            pthread_exit()
+     
+            if processing thread done (via request_complete variable)
+	        lock on worker's unique mutex
+                signal processing thread for acknowledgement about finishing
+	        wait for termination broadcast signal from processor
+	        unlock on worker's unique mutex
+
+	        terminate thread
+
+	wait for a signal from processing thread
+
+    dequeue an entry from queue
+    signal to the processor about new empty slot
+    increment number of files this thread processed on the processed_count_array (each index is a thread id)
+    
+    image processing...
+
+    output logging info to logfile
+
+
 
 main:
     Parse command arguments (number of worker threads)
