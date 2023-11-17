@@ -20,18 +20,24 @@ Construct worker threads:
     In main, keep an integer array for the worker thread arguments. pthread_create [the processing thread and] all the worker threads, passing in the arguments via the array.
 
 Mutex locks:
-1. Lock for queue operations
-2. Lock for output directory operations (writing)
-3. Lock for log file (writing)
+1. queue_lock: lock queue ops
+2. term_lock: specifically for the termination condition variable (check if processor broadcasted termination signal)
+3. log_lock: lock for log file
+4. worker_done_lock: the unique mutex for each worker, when working acknowledging image-processing completion 
+
 
 Condition variables:
 1. cons_cond: variable that is signalled if request queue is enqueued or worker should terminate
     Note: will need an additional (not conditional) variable orders_complete to tell if worker should terminate
 2. prod_cond: variable that is signalled if request queue is dequeued (in order to avoid overflowing the queue buffer)
+3. term_cond: dedicated only for termination variable
+4. worker_done_cv: array of unique conditional variables for each worker thread: checking if worker done processing
 ```
 
 Pseudocode:
 ```
+**: anything related to parallel processing
+
 processor:
     while there is a reg file (assumed to be png) found
 	lock on the queue
@@ -58,17 +64,17 @@ worker:
      
             if processing thread done (via request_complete variable)
 	        lock on worker's unique mutex
-                signal processing thread for acknowledgement about finishing
-	        wait for termination broadcast signal from processor
+                signal processing thread for acknowledgement about finishing **
+	        wait for termination broadcast signal from processor **
 	        unlock on worker's unique mutex
 
 	        terminate thread
 
-	wait for a signal from processing thread
+	wait for a signal from processing thread **
 
     dequeue an entry from queue
-    signal to the processor about new empty slot
-    increment number of files this thread processed on the processed_count_array (each index is a thread id)
+    signal to the processor about new empty slot **
+    increment number of files this thread processed on the processed_count_array (each index is a thread id) **
     
     image processing...
 
@@ -83,4 +89,6 @@ main:
     Spawn an array of worker threads (pthread_create)
     pthread_join on all threads
     Close log file
+
+    free all necessary resources
 ```
