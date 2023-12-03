@@ -24,7 +24,7 @@ int receive_file(int socket, const char *filename) {
 }
 
 int main(int argc, char* argv[]) {
-    if(argc != 3){
+    if(argc != 4){
         fprintf(stderr, "Usage: ./client File_Path_to_images File_Path_to_output_dir Rotation_angle. \n");
         return 1;
     }
@@ -52,7 +52,7 @@ int main(int argc, char* argv[]) {
         if(strcmp(entry_name, ".") == 0 || strcmp(entry_name, "..") == 0){
             continue;
         }
-        if(entry->d_type == DT_REG){
+        //if(entry->d_type == DT_REG){
             // TODO: make sure to free this (in worker after done processing)
             char *path_buf = malloc(BUFFER_SIZE * sizeof(char));
             memset(path_buf, '\0', BUFFER_SIZE * sizeof(char));
@@ -68,7 +68,7 @@ int main(int argc, char* argv[]) {
                 printf("queue[%d].filename = %s\n", i, queue[i].file_name);
             }
             printf("\n");
-        }
+        //}
 
     }
     if(closedir(directory) == -1){
