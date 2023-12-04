@@ -134,7 +134,7 @@ int main(int argc, char *argv[]) {
         // Deserialize the received data, check common.h and sample/client.c
         packet_t *ackpacket = deserializeData(recvdata);
 
-        // fprintf(stdout, "Received response :)\n");
+        fprintf(stdout, "Received ackpacket with flag %d\n", ntohs(ackpacket->flags));
 
         // Receive the processed image and save it in the output dir
 //        memset(output_path_buf, '\0', BUFFER_SIZE * sizeof(char));

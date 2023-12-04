@@ -5,16 +5,34 @@
 #define BUFFER_SIZE 1024
 
 void *clientHandler(void *socket) {
-    // Receive packets from the client
+    int conn_fd = *(int *)socket;
 
+    // Receive packets from the client
+    char recvdata[sizeof(packet_t)];
+    memset(recvdata, 0, sizeof(packet_t));
+    int ret = recv(conn_fd, recvdata, sizeof(packet_t), 0); // receive data from client
+    if(ret == -1) {
+        perror("recv error");
+    }
 
     // Determine the packet operation and flags
+    packet_t *recvpacket = deserializeData(recvdata);
+    int operation = ntohs(recvpacket->operation);
+    int flags = ntohs(recvpacket->flags);
+    int size = ntohs(recvpacket->size);
+    fprintf(stdout, "Server received operation %d with size %d from client\n", operation, size);
 
     // Receive the image data using the size
 
     // Process the image data based on the set of flags
 
     // Acknowledge the request and return the processed image data
+    packet_t packet = {htons(IMG_OP_ACK), flags, size, NULL};
+    char *serializedData = serializePacket(&packet);
+    ret = send(conn_fd, serializedData, sizeof(packet_t), 0); // send message to client
+    if(ret == -1) {
+        perror("send error");
+    }
 }
 
 int main(int argc, char *argv[]) {
