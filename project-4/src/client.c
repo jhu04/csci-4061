@@ -94,6 +94,8 @@ int main(int argc, char *argv[]) {
     char *output_path_buf = malloc(BUFFER_SIZE * sizeof(char));
 
     // TODO: modify queue instead of looping over
+    fprintf(stdout, "Queue size %d\n", queue_size);
+
     for (int i = 0; i < queue_size; i++) {
         // Open the file using filepath from filename
         FILE *fp = fopen(queue[i].file_name, "r");
@@ -110,7 +112,7 @@ int main(int argc, char *argv[]) {
         // TODO: checksum_placeholder
 
         // Set up the request packet for the server and send it
-        packet_t packet = {htons(IMG_OP_ROTATE), rotation_angle == 180 ? htons(IMG_FLAG_ROTATE_180) : htons(IMG_FLAG_ROTATE_270), htons(input_file_size), NULL};
+        packet_t packet = {IMG_OP_ROTATE, rotation_angle == 180 ? IMG_FLAG_ROTATE_180 : IMG_FLAG_ROTATE_270, htonl(input_file_size), NULL};
         char *serializedData = serializePacket(&packet);
 
         int ret = send(sockfd, serializedData, sizeof(packet), 0);
@@ -134,7 +136,7 @@ int main(int argc, char *argv[]) {
         // Deserialize the received data, check common.h and sample/client.c
         packet_t *ackpacket = deserializeData(recvdata);
 
-        fprintf(stdout, "Received ackpacket with flag %d\n", ntohs(ackpacket->flags));
+        fprintf(stdout, "Received ackpacket with flag %d\n", ackpacket->flags);
 
         // Receive the processed image and save it in the output dir
 //        memset(output_path_buf, '\0', BUFFER_SIZE * sizeof(char));
@@ -143,6 +145,16 @@ int main(int argc, char *argv[]) {
 //        strcat(output_path_buf, get_filename_from_path(queue[i].file_name));
 //
 //        int recv = receive_file(sockfd, output_path_buf);
+    }
+
+    packet_t packet = {IMG_OP_EXIT, rotation_angle == 180 ? IMG_FLAG_ROTATE_180 : IMG_FLAG_ROTATE_270, 0, NULL};
+
+    char *serializedData = serializePacket(&packet);
+
+    ret = send(sockfd, serializedData, sizeof(packet), 0);
+    if (ret == -1) {
+        perror("send error");
+        return -1;
     }
 
 

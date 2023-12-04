@@ -7,32 +7,39 @@
 void *clientHandler(void *socket) {
     int conn_fd = *(int *)socket;
 
-    // Receive packets from the client
-    char recvdata[sizeof(packet_t)];
-    memset(recvdata, 0, sizeof(packet_t));
-    int ret = recv(conn_fd, recvdata, sizeof(packet_t), 0); // receive data from client
-    if(ret == -1) {
-        perror("recv error");
+    while(1){
+        // Receive packets from the client
+        char recvdata[sizeof(packet_t)];
+        memset(recvdata, 0, sizeof(packet_t));
+        int ret = recv(conn_fd, recvdata, sizeof(packet_t), 0); // receive data from client
+        if(ret == -1) {
+            perror("recv error");
+        }
+
+        // Determine the packet operation and flags
+        packet_t *recvpacket = deserializeData(recvdata);
+        int operation = recvpacket->operation;
+        int flags = recvpacket->flags;
+        long int size = ntohl(recvpacket->size);
+        fprintf(stdout, "Server received operation %d with size %ld from client\n", operation, size);
+
+        if(operation == IMG_OP_EXIT){
+	    break;
+        }
+        // Receive the image data using the size
+
+        // Process the image data based on the set of flags
+
+        // Acknowledge the request and return the processed image data
+        packet_t packet = {IMG_OP_ACK, flags, htonl(size), NULL};
+        char *serializedData = serializePacket(&packet);
+        ret = send(conn_fd, serializedData, sizeof(packet_t), 0); // send message to client
+        if(ret == -1) {
+            perror("send error");
+        }
     }
 
-    // Determine the packet operation and flags
-    packet_t *recvpacket = deserializeData(recvdata);
-    int operation = ntohs(recvpacket->operation);
-    int flags = ntohs(recvpacket->flags);
-    int size = ntohs(recvpacket->size);
-    fprintf(stdout, "Server received operation %d with size %d from client\n", operation, size);
-
-    // Receive the image data using the size
-
-    // Process the image data based on the set of flags
-
-    // Acknowledge the request and return the processed image data
-    packet_t packet = {htons(IMG_OP_ACK), flags, size, NULL};
-    char *serializedData = serializePacket(&packet);
-    ret = send(conn_fd, serializedData, sizeof(packet_t), 0); // send message to client
-    if(ret == -1) {
-        perror("send error");
-    }
+    close(conn_fd);
 }
 
 int main(int argc, char *argv[]) {
@@ -56,7 +63,7 @@ int main(int argc, char *argv[]) {
         perror("bind error");
     }
 
-    // Listen on the socket
+    // Listen on the socket (does this run endlessly?)
     ret = listen(listen_fd, MAX_CLIENTS); // listen on the listen_fd
     if (ret == -1) {
         perror("listen error");
@@ -66,22 +73,23 @@ int main(int argc, char *argv[]) {
     // TODO: how to handle multiple connections?
     // Array of connections?
     pthread_t thread;
-//    while (true) {
-    // Can we just put connection in here?
-    struct sockaddr_in clientaddr;
-    socklen_t clientaddr_len = sizeof(clientaddr);
-    conn_fd = accept(listen_fd, (struct sockaddr *) &clientaddr, &clientaddr_len); // accept a request from a client
-    if (conn_fd == -1) {
-        perror("accept error");
+    while (true) {
+        // Can we just put connection in here?
+        struct sockaddr_in clientaddr;
+        socklen_t clientaddr_len = sizeof(clientaddr);
+        conn_fd = accept(listen_fd, (struct sockaddr *) &clientaddr, &clientaddr_len); // accept a request from a client
+        if (conn_fd == -1) {
+            perror("accept error");
+        }
+
+        pthread_create(&thread, NULL, clientHandler, &conn_fd);
+
+        // TODO: may want to replace pthread_join with something else, but do note that if the server exits, the pthreads will
+        // not finish without pthread_join
+	//alternative is detach
+        //pthread_join(thread, NULL);
+	pthread_detach(thread);
     }
-
-    pthread_create(&thread, NULL, clientHandler, &conn_fd);
-
-    // TODO: may want to replace pthread_join with something else, but do note that if the server exits, the pthreads will
-    // not finish without pthread_join
-    pthread_join(thread, NULL);
-//    }
-
     // Release any resources
     return 0;
 }
