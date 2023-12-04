@@ -26,7 +26,7 @@ __Client Handling Thread__:
 Create Connection Socket
 
 while True{
-Receive Packet
+Receive packet
 
 recv a packet from client
 

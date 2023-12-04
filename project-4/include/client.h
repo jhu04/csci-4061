@@ -2,6 +2,7 @@
 #define IMAGE_CLIENT_ROTATION_H_
 
 #define _XOPEN_SOURCE
+#define _DEFAULT_SOURCE
 
 #include <string.h>
 #include <stdlib.h>
@@ -31,7 +32,7 @@
 
 
 /********************* [ Helpful Macro Definitions ] **********************/
-#define BUFF_SIZE 1024 
+#define BUFF_SIZE 1024
 #define LOG_FILE_NAME "request_log"               //Standardized log file name
 #define INVALID -1                                  //Reusable int for marking things as invalid or incorrect
 #define MAX_THREADS 100                             //Maximum number of threads
@@ -52,20 +53,36 @@
 /********************* [ Helpful Typedefs        ] ************************/
 
 typedef struct packet {
-    unsigned char operation : 4;
-    unsigned char flags : 4;
+    unsigned char operation: 4;
+    unsigned char flags: 4;
     unsigned int size;
     unsigned char checksum[SHA256_BLOCK_SIZE];
-} packet_t; 
+} packet_t;
 
 typedef struct request_queue {
     int rotation_angle;
     char *file_name;
-} request_t; 
+} request_t;
 
 typedef struct processing_args {
     int number_worker;
     char *file_name;
 } processing_args_t;
+
+// serialize packet
+char *serializePacket(packet_t *packet) {
+    char *serializedData = (char *) malloc(sizeof(packet_t));
+    memset(serializedData, 0, sizeof(packet_t));
+    memcpy(serializedData, packet, sizeof(packet_t));
+    return serializedData;
+}
+
+// deserialize data
+packet_t *deserializeData(char *serializedData) {
+    packet_t *packet = (packet_t *) malloc(sizeof(packet_t));
+    memset(packet, 0, sizeof(packet_t));
+    memcpy(packet, serializedData, sizeof(packet_t));
+    return packet;
+}
 
 #endif
