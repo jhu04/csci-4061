@@ -4,19 +4,40 @@
 #define BUFFER_SIZE 1024 
 
 int send_file(int socket, const char *filename) {
-    // Open the file
+    // Open the file using filepath from filename
+    FILE* fp = fopen(filename, "r");
+
+    // Find the file size
+    // TODO : Error check
+    fseek(fp, 0, SEEK_END);
+    long int input_file_size = ftell(fp);
+
+    // Setup checksum placeholder
+    char checksum_placeholder[SHA256_BLOCK_SIZE];
+    memset(checksum_placeholder, '\0', SHA256_BLOCK_SIZE * sizeof(char));
 
     // Set up the request packet for the server and send it
+    Packet packet = {htons(IMG_OP_ROTATE), rotation_angle == 180 ? htons(IMG_FLAG_ROTATE_180) : htons(IMG_FLAG_ROTATE_270), htons(input_file_size), checksum_placeholder};
+    char *serializedData = serializedPacket(&packet);
 
     // Send the file data
+    int ret = send(socket, serializedData, sizeof(packet), 0);
+    if(ret == -1) {
+        perror("send error");
+        return -1;
+    }
+    
     return 0;
 }
 
 int receive_file(int socket, const char *filename) {
     // Open the file
+    FILE* fp = fopen(filename, "w");
 
     // Receive response packet
-
+    char recvdata[sizeof(packet)];
+    memset(recvdata, 0, sizeof);
+    int ret = recv(socket, )
     // Receive the file data
 
     // Write the data to the file
@@ -36,8 +57,20 @@ int main(int argc, char* argv[]) {
     int queue_size = 0;
 
     // Set up socket
-
+    int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    if (sockfd == -1){
+        perror("socket error");
+    }
     // Connect the socket
+    struct sockaddr_in servaddr;
+    servaddr.sin_family = AF_INET;
+    servaddr.sin_addr.saddr = inet_addr("127.0.0.1");
+    servaddr.sin_port = htons(PORT);
+
+    int ret = connect(sockfd, (struct sockaddr *) &servaddr, sizeof(servaddr));
+    if (ret == -1){
+        perror("connect error");
+    }
 
     // Read the directory for all the images to rotate
     DIR *directory = opendir(image_directory);
@@ -76,15 +109,28 @@ int main(int argc, char* argv[]) {
         exit(-1);
     }
 
+    char *output_path_buf = malloc(BUFFER_SIZE * sizeof(char));
 
-    // Send the image data to the server
+    for(int i =0; i< queue.size; i++){
+        // Send the image data to the server
+        int send_ret = send_file(sockfd, queue[i].file_name);
 
-    // Check that the request was acknowledged
+        //TODO : Check that the request was acknowledged
+        
+        // Receive the processed image and save it in the output dir
+        memset(output_path_buf, '\0', BUFFER_SIZE * sizeof(char));
+        strcpy(output_path_buf, output_directory);
+        strcat(output_path_buf, "/");
+        strcat(output_path_buf, get_filename_from_path(queue[i].file_name));
 
-    // Receive the processed image and save it in the output dir
-
+        int recv = receive_file(sockfd, output_path_buf);
+    }
+   
+    
     // Terminate the connection once all images have been processed
-
+    close(sockfd);
     // Release any resources
+    free(path_buf);
+    free(output_path_buf);
     return 0;
 }
