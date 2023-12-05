@@ -1,6 +1,6 @@
 #include "server.h"
 
-#define PORT 8080
+#define PORT 5570
 #define MAX_CLIENTS 5
 #define BUFFER_SIZE 1024
 
@@ -11,6 +11,7 @@ void *clientHandler(void *socket) {
         // Receive packets from the client
         char recvdata[sizeof(packet_t)];
         memset(recvdata, 0, sizeof(packet_t));
+
         int ret = recv(conn_fd, recvdata, sizeof(packet_t), 0); // receive data from client
         if(ret == -1) {
             perror("recv error");
@@ -23,8 +24,9 @@ void *clientHandler(void *socket) {
         long int size = ntohl(recvpacket->size);
         fprintf(stdout, "Server received operation %d with size %ld from client\n", operation, size);
 
-        if(operation == IMG_OP_EXIT){
-	    break;
+        free(recvpacket);
+        if(operation == IMG_OP_EXIT) {
+            break;
         }
         // Receive the image data using the size
 
@@ -37,6 +39,8 @@ void *clientHandler(void *socket) {
         if(ret == -1) {
             perror("send error");
         }
+
+        free(serializedData);
     }
 
     close(conn_fd);
@@ -86,10 +90,11 @@ int main(int argc, char *argv[]) {
 
         // TODO: may want to replace pthread_join with something else, but do note that if the server exits, the pthreads will
         // not finish without pthread_join
-	//alternative is detach
+        //alternative is detach
         //pthread_join(thread, NULL);
-	pthread_detach(thread);
+        pthread_detach(thread);
     }
+
     // Release any resources
     return 0;
 }

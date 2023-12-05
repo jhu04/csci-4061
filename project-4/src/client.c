@@ -1,6 +1,6 @@
 #include "client.h"
 
-#define PORT 8080
+#define PORT 5570
 #define BUFFER_SIZE 1024
 
 int send_file(int socket, const char *filename) {
@@ -60,8 +60,8 @@ int main(int argc, char *argv[]) {
         perror("Failed to open directory");
         exit(1);
     }
-    struct dirent *entry;
 
+    struct dirent *entry;
     while ((entry = readdir(directory)) != NULL) {
         char *entry_name = entry->d_name;
         if (strcmp(entry_name, ".") == 0 || strcmp(entry_name, "..") == 0) {
@@ -105,6 +105,8 @@ int main(int argc, char *argv[]) {
         fseek(fp, 0, SEEK_END);
         long int input_file_size = ftell(fp);
 
+        fclose(fp);
+
         // Setup checksum placeholder
         unsigned char checksum_placeholder[SHA256_BLOCK_SIZE];
         memset(checksum_placeholder, '\0', SHA256_BLOCK_SIZE * sizeof(char));
@@ -126,7 +128,7 @@ int main(int argc, char *argv[]) {
 
         //TODO : Check that the request was acknowledged
         char recvdata[sizeof(packet_t)];
-        memset(recvdata, 0, sizeof(packet_t));
+        memset(recvdata, '\0', sizeof(packet_t));
         ret = recv(sockfd, recvdata, sizeof(packet_t), 0); // receive data from server
         if(ret == -1) {
             perror("recv error");
@@ -145,6 +147,10 @@ int main(int argc, char *argv[]) {
 //        strcat(output_path_buf, get_filename_from_path(queue[i].file_name));
 //
 //        int recv = receive_file(sockfd, output_path_buf);
+
+        free(queue[i].file_name);
+        free(ackpacket);
+        free(serializedData);
     }
 
     packet_t packet = {IMG_OP_EXIT, rotation_angle == 180 ? IMG_FLAG_ROTATE_180 : IMG_FLAG_ROTATE_270, 0, NULL};
@@ -160,8 +166,9 @@ int main(int argc, char *argv[]) {
 
     // Terminate the connection once all images have been processed
     close(sockfd);
+    
     // Release any resources
-//    free(path_buf);
     free(output_path_buf);
+    free(serializedData);
     return 0;
 }
