@@ -3,24 +3,64 @@
 #define PORT 5570
 #define BUFFER_SIZE 1024
 
+//TODO: needs error checking
 int send_file(int socket, const char *filename) {
     // Send the file data
+    char img_data[BUFFER_SIZE];
+    bzero(img_data, BUFFER_SIZE);
 
+    FILE *fp = fopen(filename, "r");
+
+    while(fread(img_data, sizeof(char), BUFFER_SIZE, fp) != 0){
+        //send img_data over network
+	send(socket, img_data, BUFFER_SIZE, 0);
+    }
 
     return 0;
 }
 
+//TODO: needs error checking
 int receive_file(int socket, const char *filename) {
-    // Open the file
-    FILE *fp = fopen(filename, "w");
+    // Buffer to store processed image data
+    char buffer[BUFFER_SIZE];
+    bzero(buffer, BUFFER_SIZE);
 
-    // Receive response packet
     char recvdata[sizeof(packet_t)];
-    memset(recvdata, 0, sizeof(packet_t));
-//    int ret = recv(socket, )
-    // Receive the file data
+    memset(recvdata, '\0', sizeof(packet_t));
 
-    // Write the data to the file
+    unsigned int img_size;
+
+    int ret = recv(socket, recvdata, sizeof(packet_t), 0); // receive data from server
+    if(ret == -1) {
+        perror("recv error");
+        exit(-1);
+    }
+
+    // Deserialize the received data, check common.h and sample/client.c
+    packet_t *ackpacket = deserializeData(recvdata);
+    fprintf(stdout, "Received ackpacket with flag %d and image size %u\n", ackpacket->flags, ackpacket->size);
+    img_size = ackpacket->size;
+
+    ///////////////////////////////////////////////////////////////////////////
+    char img_data[img_size];
+    bzero(img_data, img_size);
+
+    unsigned int bytes_counted = 0;
+
+    while(bytes_counted < img_size){
+    	int ret = recv(socket, buffer, BUFFER_SIZE, 0);
+	if(ret == -1) {
+	    perror("recv error on img_data packets");
+	    exit(-1);
+	}
+        fprintf(stdout, "Received img_data packet of size %d\n", ret);
+
+	strcat(img_data, buffer);
+	bytes_counted += ret;
+    }
+
+    free(ackpacket);
+
     return 0;
 }
 
@@ -163,10 +203,10 @@ int main(int argc, char *argv[]) {
 //        strcat(output_path_buf, "/");
 //        strcat(output_path_buf, get_filename_from_path(queue[i].file_name));
 //
-//        int recv = receive_file(sockfd, output_path_buf);
+        int recv = receive_file(sockfd, output_path_buf);
+
 
         free(queue[i].file_name);
-        free(ackpacket);
         free(serializedData);
     }
 
