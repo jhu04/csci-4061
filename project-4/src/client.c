@@ -4,8 +4,6 @@
 #define BUFFER_SIZE 1024
 
 int send_file(int socket, const char *filename) {
-
-
     // Send the file data
 
 
@@ -31,6 +29,7 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "Usage: ./client File_Path_to_images File_Path_to_output_dir Rotation_angle. \n");
         return 1;
     }
+
     char *image_directory = argv[1];
     char *output_directory = argv[2];
     int rotation_angle = atoi(argv[3]);
@@ -42,7 +41,9 @@ int main(int argc, char *argv[]) {
     int sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd == -1) {
         perror("socket error");
+        exit(-1);
     }
+
     // Connect the socket
     struct sockaddr_in servaddr;
     servaddr.sin_family = AF_INET;
@@ -52,23 +53,25 @@ int main(int argc, char *argv[]) {
     int ret = connect(sockfd, (struct sockaddr *) &servaddr, sizeof(servaddr));
     if (ret == -1) {
         perror("connect error");
+        exit(-1);
     }
 
     // Read the directory for all the images to rotate
     DIR *directory = opendir(image_directory);
     if (directory == NULL) {
         perror("Failed to open directory");
-        exit(1);
+        exit(-1);
     }
 
     struct dirent *entry;
     while ((entry = readdir(directory)) != NULL) {
         char *entry_name = entry->d_name;
+
         if (strcmp(entry_name, ".") == 0 || strcmp(entry_name, "..") == 0) {
             continue;
         }
+
         if (entry->d_type == DT_REG) {
-            // TODO: make sure to free this (in worker after done processing)
             char *path_buf = malloc(BUFFER_SIZE * sizeof(char));
             memset(path_buf, '\0', BUFFER_SIZE * sizeof(char));
             strcpy(path_buf, image_directory);
@@ -99,13 +102,27 @@ int main(int argc, char *argv[]) {
     for (int i = 0; i < queue_size; i++) {
         // Open the file using filepath from filename
         FILE *fp = fopen(queue[i].file_name, "r");
+        if (fp == NULL) {
+            perror("Failed to open file");
+            exit(-1);
+        }
 
         // Find the file size
-        // TODO : Error check
-        fseek(fp, 0, SEEK_END);
-        long int input_file_size = ftell(fp);
+        if (fseek(fp, 0, SEEK_END) == -1){ // Error check fseek
+            perror("Failed to move file offset to the end");
+            exit(-1);
+        }
 
-        fclose(fp);
+        long int input_file_size = ftell(fp);
+        if(input_file_size == -1){ // Error check ftell
+            perror("Failed to determine position of file offset");
+            exit(-1);
+        }
+
+        if (fclose(fp) != 0) {
+            perror("Failed to close file");
+            exit(-1);
+        }
 
         // Setup checksum placeholder
         unsigned char checksum_placeholder[SHA256_BLOCK_SIZE];
@@ -120,7 +137,7 @@ int main(int argc, char *argv[]) {
         int ret = send(sockfd, serializedData, sizeof(packet), 0);
         if (ret == -1) {
             perror("send error");
-            return -1;
+            exit(-1);
         }
 
         // Send the image data to the server
@@ -132,7 +149,7 @@ int main(int argc, char *argv[]) {
         ret = recv(sockfd, recvdata, sizeof(packet_t), 0); // receive data from server
         if(ret == -1) {
             perror("recv error");
-            return -1;
+            exit(-1);
         }
 
         // Deserialize the received data, check common.h and sample/client.c
@@ -160,15 +177,15 @@ int main(int argc, char *argv[]) {
     ret = send(sockfd, serializedData, sizeof(packet), 0);
     if (ret == -1) {
         perror("send error");
-        return -1;
+        exit(-1);
     }
-
 
     // Terminate the connection once all images have been processed
     close(sockfd);
-    
+
     // Release any resources
     free(output_path_buf);
     free(serializedData);
+    
     return 0;
 }
