@@ -25,23 +25,23 @@ loop (listen --> accept connection and invoke client handling thread)
 __Client Handling Thread__:
 Create Connection Socket
 
-while True{
-Receive packet
+while True {
+    Receive packet
 
-recv a packet from client
+    recv a packet from client
 
-if received a IMG_OP_EXIT packet
-	break;
-//else received a IMG_OP_ROTATE packet --> image processing on it
+    if received a IMG_OP_EXIT packet
+        break;
+    //else received a IMG_OP_ROTATE packet --> image processing on it
 
-Image Processing
+    Image Processing
 
-//Sending packets: if error occurs, create an IMG_OP_NAK packet and send it to client
-//Sending packets: if successful, create an IMG_OP_ACK packet with processed image data and send to client
-if error occurs
-	send IMG_OP_NAK packet
+    //Sending packets: if error occurs, create an IMG_OP_NAK packet and send it to client
+    //Sending packets: if successful, create an IMG_OP_ACK packet with processed image data and send to client
+    if error occurs
+        send IMG_OP_NAK packet
 
-send IMG_OP_ACK packet
+    send IMG_OP_ACK packet
 }
 
 Close connection socket
