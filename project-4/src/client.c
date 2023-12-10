@@ -11,9 +11,12 @@ int send_file(int socket, const char *filename) {
 
     FILE *fp = fopen(filename, "r");
 
+    int i=0;
     while(fread(img_data, sizeof(char), BUFFER_SIZE, fp) != 0){
         //send img_data over network
+	fprintf(stdout, "Sending packet#%d to server\n", i);
 	send(socket, img_data, BUFFER_SIZE, 0);
+	i++;
     }
 
     return 0;
@@ -53,7 +56,7 @@ int receive_file(int socket, const char *filename) {
 	    perror("recv error on img_data packets");
 	    exit(-1);
 	}
-        fprintf(stdout, "Received img_data packet of size %d\n", ret);
+        fprintf(stdout, "Received img_data packet#%d of size %d\n", ret/2, ret);
 
 	strcat(img_data, buffer);
 	bytes_counted += ret;
@@ -174,7 +177,7 @@ int main(int argc, char *argv[]) {
         packet_t packet = {IMG_OP_ROTATE, rotation_angle == 180 ? IMG_FLAG_ROTATE_180 : IMG_FLAG_ROTATE_270, htonl(input_file_size), NULL};
         char *serializedData = serializePacket(&packet);
 
-        int ret = send(sockfd, serializedData, sizeof(packet), 0);
+        int ret = send(sockfd, serializedData, sizeof(packet_t), 0);
         if (ret == -1) {
             perror("send error");
             exit(-1);
@@ -183,7 +186,8 @@ int main(int argc, char *argv[]) {
         // Send the image data to the server
         int send_ret = send_file(sockfd, queue[i].file_name);
 
-        //TODO : Check that the request was acknowledged
+        //TODO : Check that the packet was acknowledged IMG_OP_ACK or IMG_OP_NAK
+	//TODO: Code clean-up: Receiving the ack/nak packet already happens in receive_file
         char recvdata[sizeof(packet_t)];
         memset(recvdata, '\0', sizeof(packet_t));
         ret = recv(sockfd, recvdata, sizeof(packet_t), 0); // receive data from server
@@ -214,7 +218,7 @@ int main(int argc, char *argv[]) {
 
     char *serializedData = serializePacket(&packet);
 
-    ret = send(sockfd, serializedData, sizeof(packet), 0);
+    ret = send(sockfd, serializedData, sizeof(packet_t), 0);
     if (ret == -1) {
         perror("send error");
         exit(-1);
