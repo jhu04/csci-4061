@@ -35,12 +35,18 @@ void *clientHandler(void *socket) {
         }
         fprintf(stdout, "Server received IMG_OP_ROTATE packet w/ operation %d with size %ld from client\n", operation, size);
 
-        //Nested loop is receiving packets for incoming image data. This data is combined into the img_data buffer   
-	    int i=0;
+        //Nested loop is receiving packets for incoming image data. This data is combined into the img_data buffer
+        char temp_filename[BUFFER_SIZE];
+        memset(temp_filename, '\0', BUFFER_SIZE * sizeof(char));
+        sprintf(temp_filename, "%d.png", getpid());
+
+        // FILE *temp = fopen(temp_filename, )
+        
+        int i=0;
         char img_data_buf[BUFFER_SIZE];
 
         while (i<size) {
-	        //Receiving individual chunks of the image data
+            //Receiving individual chunks of the image data
             fprintf(stdout, "Received packet#%d of image data\n", i);
             memset(img_data_buf, 0, BUFFER_SIZE);
             i+=recv(conn_fd, img_data_buf, BUFFER_SIZE, 0);    
@@ -53,15 +59,9 @@ void *clientHandler(void *socket) {
             //concat chunks into buffer
             strcat(img_data, img_data_buf);
         }
-        for(int j=0; j<10; j++){
-            fprintf(stderr, "%d", (int)img_data[j]);
-        }
-        
-        
-        
 
         //do img_processing
-	
+        
         /*
             TODO:
             Need to send IMG_OP_NAK packet if smth wrong occurs in any of these functions below:
@@ -82,7 +82,7 @@ void *clientHandler(void *socket) {
         int height = 0;
         int bpp = 0;
 
-	    //TODO: fill image_result w/ image buffer??
+        //TODO: fill image_result w/ image buffer??
         uint8_t *image_result = stbi_load_from_memory(img_data, size, &width, &height, &bpp, CHANNEL_NUM); //stbi_load(cur_request.filename, &width, &height, &bpp, CHANNEL_NUM);
         uint8_t **result_matrix = (uint8_t **) malloc(sizeof(uint8_t *) * width);
         uint8_t **img_matrix = (uint8_t **) malloc(sizeof(uint8_t *) * width);
@@ -120,9 +120,9 @@ void *clientHandler(void *socket) {
         flatten_mat(result_matrix, img_array, width, height);
 
         // Acknowledge the request (send ACK packet)
-	    // fflush(stdout);
+        // fflush(stdout);
         
-	    fprintf(stdout, "Sending Ack Packet\n");
+        fprintf(stdout, "Sending Ack Packet\n");
         packet_t packet = {IMG_OP_ACK, flags, htonl(sizeof(uint8_t) * width * height), NULL}; //TODO: need a case when image processing didn't work, send IMG_OP_NAK pkt
         char *serializedData = serializePacket(&packet);
         ret = send(conn_fd, serializedData, sizeof(packet_t), 0); // send message to client
@@ -136,19 +136,19 @@ void *clientHandler(void *socket) {
         //send image data back to client
         //so another set of nested while loop to send back as byte streams
         //use img_array as the data to send back to the client
-	    //Send the file data
+        //Send the file data
         //char img_data[BUFFER_SIZE];
         //bzero(img_data, BUFFER_SIZE);
     
-    fprintf(stderr, "w : %d, h : %d\n", width, height);
-	for(int i=0; i<width * height * sizeof(uint8_t); i+=BUFFER_SIZE){
-	    fprintf(stdout, "Send packet#%d to client\n", i);
-	    int ret = send(socket, img_array+i, BUFFER_SIZE, 0);
-	    if(ret == -1){
-		perror("send error");
-		// pthread_exit(NULL);
-	    }
-	}
+        fprintf(stderr, "w : %d, h : %d\n", width, height);
+        for(int i=0; i<width * height * sizeof(uint8_t); i+=BUFFER_SIZE){
+            fprintf(stdout, "Send packet#%d to client\n", i);
+            int ret = send(socket, img_array+i, BUFFER_SIZE, 0);
+            if(ret == -1){
+                perror("send error");
+                // pthread_exit(NULL);
+            }
+        }
 
     }
 
