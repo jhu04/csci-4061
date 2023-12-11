@@ -7,6 +7,7 @@
 void *clientHandler(void *socket) {
     int conn_fd = *(int *)socket;
 
+    //This outer while loop iterates for every image the client sends to the be processed
     while(1){
         //make initial recv call to get the first packet
         //Basically, obtain metadata about incoming image data
@@ -25,8 +26,9 @@ void *clientHandler(void *socket) {
         int operation = recvpacket->operation;
         int flags = recvpacket->flags;
         long int size = ntohl(recvpacket->size);
-        char img_data[size];
-        memset(img_data, '\0', size*sizeof(char));
+        //char img_data[size]; //TODO: Delete
+
+        //memset(img_data, '\0', size*sizeof(char)); //TODO: Delete
         free(recvpacket);
 
         if (operation == IMG_OP_EXIT) {
@@ -38,18 +40,18 @@ void *clientHandler(void *socket) {
         //Nested loop is receiving packets for incoming image data. This data is combined into the img_data buffer
         char temp_filename[BUFFER_SIZE];
         memset(temp_filename, '\0', BUFFER_SIZE * sizeof(char));
-        sprintf(temp_filename, "%d.png", getpid());
+        sprintf(temp_filename, "SERVER_%lu.png", pthread_self());
 
-        // FILE *temp = fopen(temp_filename, )
-        
+        FILE *temp = fopen(temp_filename, "a");
+
         int i=0;
         char img_data_buf[BUFFER_SIZE];
 
         while (i<size) {
             //Receiving individual chunks of the image data
             fprintf(stdout, "Received packet#%d of image data\n", i);
-            memset(img_data_buf, 0, BUFFER_SIZE);
-            i+=recv(conn_fd, img_data_buf, BUFFER_SIZE, 0);    
+            memset(img_data_buf, '\0', BUFFER_SIZE);
+            int bytes_added = recv(conn_fd, img_data_buf, BUFFER_SIZE, 0);    
             
             if(ret == -1){
                 perror("recv error");
@@ -57,9 +59,14 @@ void *clientHandler(void *socket) {
             }
 
             //concat chunks into buffer
-            strcat(img_data, img_data_buf);
+	    fwrite(img_data_buf, sizeof(char), bytes_added, temp);
+            //strcat(img_data, img_data_buf); //TODO: Delete
+	    i+=bytes_added;
         }
 
+	fprintf(stdout, "Received all image data packets\n");
+
+	fclose(temp);
         //do img_processing
         
         /*
@@ -83,7 +90,7 @@ void *clientHandler(void *socket) {
         int bpp = 0;
 
         //TODO: fill image_result w/ image buffer??
-        uint8_t *image_result = stbi_load_from_memory(img_data, size, &width, &height, &bpp, CHANNEL_NUM); //stbi_load(cur_request.filename, &width, &height, &bpp, CHANNEL_NUM);
+        uint8_t *image_result = stbi_load(temp_filename, &width, &height, &bpp, CHANNEL_NUM); //stbi_load_from_memory(img_data, size, &width, &height, &bpp, CHANNEL_NUM);
         uint8_t **result_matrix = (uint8_t **) malloc(sizeof(uint8_t *) * width);
         uint8_t **img_matrix = (uint8_t **) malloc(sizeof(uint8_t *) * width);
         for (int i = 0; i < width; i++) {
@@ -101,6 +108,15 @@ void *clientHandler(void *socket) {
         */
         linear_to_image(image_result, img_matrix, width, height);
 
+        fprintf(stdout, "=======================================IMAGE MATRIX=========================================\n");
+
+	for(int i=0; i<width; i++){
+	    for(int j=0; j<height; j++){
+		fprintf(stdout, "%d ", img_matrix[i][j]);
+	    }
+	    fprintf(stdout, "\n");
+	}
+
         //You should be ready to call flip_left_to_right or flip_upside_down depends on the angle(Should just be 180 or 270)
         //both take image matrix from linear_to_image, and result_matrix to store data, and width and height.
         //Hint figure out which function you will call.
@@ -109,6 +125,16 @@ void *clientHandler(void *socket) {
         } else {
             flip_upside_down(img_matrix, result_matrix, width, height);
         }
+
+	fprintf(stdout, "=======================================RESULT MATRIX=========================================\n");
+
+        for(int i=0; i<width; i++){
+            for(int j=0; j<height; j++){
+                fprintf(stdout, "%d ", result_matrix[i][j]);
+            }
+            fprintf(stdout, "\n");
+        }
+
 
         uint8_t *img_array = malloc(sizeof(uint8_t) * width * height); ///Hint malloc using sizeof(uint8_t) * width * height
         memset(img_array, 0, width * height * sizeof(uint8_t));
@@ -119,6 +145,14 @@ void *clientHandler(void *socket) {
         //Flattening image to 1-dimensional data structure
         flatten_mat(result_matrix, img_array, width, height);
 
+
+        fprintf(stdout, "=======================================IMAGE ARRAY=========================================\n");
+
+        for(int i=0; i<sizeof(uint8_t) * width * height; i++){
+            fprintf(stdout, "%d ", img_array[i]);
+        }
+	fprintf(stdout, "\n");
+
         // Acknowledge the request (send ACK packet)
         // fflush(stdout);
         
@@ -127,8 +161,9 @@ void *clientHandler(void *socket) {
         char *serializedData = serializePacket(&packet);
         ret = send(conn_fd, serializedData, sizeof(packet_t), 0); // send message to client
         if (ret == -1) {
+	    fprintf(stdout, "Ack packet sending failed...\n");
             perror("send error");
-            // pthread_exit(NULL);
+            pthread_exit(NULL);
         }
 
         free(serializedData);
@@ -140,13 +175,21 @@ void *clientHandler(void *socket) {
         //char img_data[BUFFER_SIZE];
         //bzero(img_data, BUFFER_SIZE);
     
+	//fopen(temp, "r");
+        fprintf(stdout, "Image Array Material\n");
+	fprintf(stdout, "%s\n", img_array);
+
         fprintf(stderr, "w : %d, h : %d\n", width, height);
         for(int i=0; i<width * height * sizeof(uint8_t); i+=BUFFER_SIZE){
             fprintf(stdout, "Send packet#%d to client\n", i);
-            int ret = send(socket, img_array+i, BUFFER_SIZE, 0);
+
+	    //memset(img_data_buf, '\0', BUFFER_SIZE);
+	    //int bytes_read = fread(img_data_buf, sizeof(char), BUFFER_SIZE, temp);
+
+            int ret = send(conn_fd, img_array+i, BUFFER_SIZE, 0);
             if(ret == -1){
                 perror("send error");
-                // pthread_exit(NULL);
+                pthread_exit(NULL);
             }
         }
 

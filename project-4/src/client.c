@@ -22,8 +22,19 @@ int send_file(int socket, const char *filename) {
 }
 
 //TODO: needs error checking
+//TODO: need to send processed file to output directory
 int receive_file(int socket, const char *filename) {
     // Buffer to store processed image data
+    //TODO: Delete anything to do w/ array-like buffers & replace w/ temp_file implementations
+    //TODO: Unlink hard_links XP
+
+    char temp_filename[BUFFER_SIZE];
+    memset(temp_filename, '\0', BUFFER_SIZE * sizeof(char));
+    sprintf(temp_filename, "%lu.png", pthread_self());
+
+    FILE *temp = fopen(temp_filename, "a");
+
+
     char buffer[BUFFER_SIZE];
     bzero(buffer, BUFFER_SIZE);
 
@@ -44,8 +55,8 @@ int receive_file(int socket, const char *filename) {
     img_size = ackpacket->size;
 
     ///////////////////////////////////////////////////////////////////////////
-    char img_data[img_size];
-    bzero(img_data, img_size);
+    //char img_data[img_size];
+    //bzero(img_data, img_size);
 
     unsigned int bytes_counted = 0;
 
@@ -57,7 +68,9 @@ int receive_file(int socket, const char *filename) {
 	}
         fprintf(stdout, "Received img_data packet#%d of size %d\n", ret/2, ret);
 
-	strcat(img_data, buffer);
+	fwrite(buffer, sizeof(char), bytes_counted, temp);
+	//strcat(img_data, buffer);
+
 	bytes_counted += ret;
     }
 
