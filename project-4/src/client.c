@@ -10,13 +10,12 @@ int send_file(int socket, const char *filename) {
     bzero(img_data, BUFFER_SIZE);
 
     FILE *fp = fopen(filename, "r");
-
     int i=0;
     while(fread(img_data, sizeof(char), BUFFER_SIZE, fp) != 0){
         //send img_data over network
-	fprintf(stdout, "Sending packet#%d to server\n", i);
-	send(socket, img_data, BUFFER_SIZE, 0);
-	i++;
+        fprintf(stdout, "Sending packet#%d to server\n", i);
+        send(socket, img_data, BUFFER_SIZE, 0);
+        i++;
     }
 
     return 0;
@@ -183,6 +182,7 @@ int main(int argc, char *argv[]) {
             exit(-1);
         }
 
+        
         // Send the image data to the server
         int send_ret = send_file(sockfd, queue[i].file_name);
 
