@@ -82,7 +82,6 @@ void *clientHandler(void *socket) {
         int height = 0;
         int bpp = 0;
 
-        //TODO: fill image_result w/ image buffer??
         uint8_t *image_result = stbi_load(temp_filename, &width, &height, &bpp, CHANNEL_NUM); //stbi_load_from_memory(img_data, size, &width, &height, &bpp, CHANNEL_NUM);
         uint8_t **result_matrix = (uint8_t **) malloc(sizeof(uint8_t *) * width);
         uint8_t **img_matrix = (uint8_t **) malloc(sizeof(uint8_t *) * width);
@@ -119,7 +118,7 @@ void *clientHandler(void *socket) {
         //Flattening image to 1-dimensional data structure
         flatten_mat(result_matrix, img_array, width, height);
 
-        //New path to where you wanna save the file,
+        //New path to where you want to save the file,
         //Width
         //height
         //img_array
