@@ -10,13 +10,9 @@ int send_file(int socket, const char *filename) {
     bzero(img_data, BUFFER_SIZE);
 
     FILE *fp = fopen(filename, "r");
-    int i=0;
     while(fread(img_data, sizeof(char), BUFFER_SIZE, fp) != 0){
-        //send img_data over network
-        fprintf(stdout, "Sending packet#%d to server\n", i);
         send(socket, img_data, BUFFER_SIZE, 0);
         memset(img_data, '\0', BUFFER_SIZE);
-        i++;
     }
 
     return 0;
@@ -54,16 +50,13 @@ int receive_file(int socket, const char *filename) {
     while (i < size) {
         memset(img_data_buf, '\0', BUFFER_SIZE);
         
-        printf("Waiting to receive\n");
         int bytes_added = recv(socket, img_data_buf, BUFFER_SIZE, 0);
-        printf("Received %d\n", bytes_added);
 
         if(ret == -1) {
             perror("recv error on img_data packets");
             exit(-1);
         }
-        fprintf(stdout, "Received img_data packet#%d of size %d\n", ret/2, ret);
-
+        
         fwrite(img_data_buf, sizeof(char), bytes_added, fp);
         //strcat(img_data, buffer);
 
@@ -133,12 +126,6 @@ int main(int argc, char *argv[]) {
 
             queue[queue_size] = (request_t) {.rotation_angle = rotation_angle, .file_name = path_buf};
             queue_size++;
-
-            // prints queue for debugging purposes
-            for (int i = 0; i < queue_size; ++i) {
-                printf("queue[%d].filename = %s\n", i, queue[i].file_name);
-            }
-            printf("\n");
         }
     }
 
@@ -148,9 +135,6 @@ int main(int argc, char *argv[]) {
     }
 
     char *output_path_buf = malloc(BUFFER_SIZE * sizeof(char));
-
-    // TODO: modify queue instead of looping over
-    fprintf(stdout, "Queue size %d\n", queue_size);
 
     for (int i = 0; i < queue_size; i++) {
         // Open the file using filepath from filename

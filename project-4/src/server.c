@@ -30,10 +30,8 @@ void *clientHandler(void *socket) {
         free(recvpacket);
 
         if (operation == IMG_OP_EXIT) {
-            fprintf(stdout, "Server received IMG_OP_EXIT packet\n");
             break;
         }
-        fprintf(stdout, "Server received IMG_OP_ROTATE packet w/ operation %d with size %ld from client\n", operation, size);
 
         //Nested loop is receiving packets for incoming image data. This data is combined into the img_data buffer
         char temp_filename[BUFFER_SIZE];
@@ -47,7 +45,6 @@ void *clientHandler(void *socket) {
 
         while (i<size) {
             //Receiving individual chunks of the image data
-            fprintf(stdout, "Received packet#%d of image data\n", i);
             memset(img_data_buf, '\0', BUFFER_SIZE);
             int bytes_added = recv(conn_fd, img_data_buf, BUFFER_SIZE, 0);    
             
@@ -61,8 +58,6 @@ void *clientHandler(void *socket) {
             //strcat(img_data, img_data_buf); //TODO: Delete
             i+=bytes_added;
         }
-
-        fprintf(stdout, "Received all image data packets\n");
 
         fclose(temp);
         //do img_processing
@@ -106,15 +101,6 @@ void *clientHandler(void *socket) {
         */
         linear_to_image(image_result, img_matrix, width, height);
 
-        fprintf(stdout, "=======================================IMAGE MATRIX=========================================\n");
-
-        for(int i=0; i<width; i++){
-            for(int j=0; j<height; j++){
-                fprintf(stdout, "%d ", img_matrix[i][j]);
-            }
-            fprintf(stdout, "\n");
-        }
-
         //You should be ready to call flip_left_to_right or flip_upside_down depends on the angle(Should just be 180 or 270)
         //both take image matrix from linear_to_image, and result_matrix to store data, and width and height.
         //Hint figure out which function you will call.
@@ -123,16 +109,6 @@ void *clientHandler(void *socket) {
         } else {
             flip_upside_down(img_matrix, result_matrix, width, height);
         }
-
-        fprintf(stdout, "=======================================RESULT MATRIX=========================================\n");
-
-        for(int i=0; i<width; i++){
-            for(int j=0; j<height; j++){
-                fprintf(stdout, "%d ", result_matrix[i][j]);
-            }
-            fprintf(stdout, "\n");
-        }
-
 
         uint8_t *img_array = malloc(sizeof(uint8_t) * width * height); ///Hint malloc using sizeof(uint8_t) * width * height
         memset(img_array, 0, width * height * sizeof(uint8_t));
@@ -181,7 +157,6 @@ void *clientHandler(void *socket) {
             exit(-1);
         }
         
-        fprintf(stdout, "Sending Ack Packet\n");
         packet_t packet = {IMG_OP_ACK, flags, htonl(file_size), NULL}; //TODO: need a case when image processing didn't work, send IMG_OP_NAK pkt
         char *serializedData = serializePacket(&packet);
         ret = send(conn_fd, serializedData, sizeof(packet_t), 0); // send message to client
@@ -206,8 +181,10 @@ void *clientHandler(void *socket) {
             memset(img_data_buf, '\0', BUFFER_SIZE);
         }
 
-        // TODO: unlink temp
         fclose(temp);
+
+        // TODO: error check
+        remove(temp_filename);
     }
 
 
