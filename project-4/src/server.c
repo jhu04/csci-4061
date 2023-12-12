@@ -192,9 +192,7 @@ void *clientHandler(void *socket) {
 
 int main(int argc, char *argv[]) {
     // Creating socket file descriptor
-    int listen_fd, conn_fd;
-
-    listen_fd = socket(AF_INET, SOCK_STREAM, 0); // create listening socket
+    int listen_fd = socket(AF_INET, SOCK_STREAM, 0); // create listening socket
     if (listen_fd == -1) {
         perror("socket error");
         exit(-1);
@@ -224,16 +222,21 @@ int main(int argc, char *argv[]) {
     // TODO: how to handle multiple connections?
     // Array of connections?
     pthread_t thread;
+
+    int conn_fd[1024];
+    int i = 0;
+
     while (true) {
         // Can we just put connection in here?
         struct sockaddr_in clientaddr;
         socklen_t clientaddr_len = sizeof(clientaddr);
-        conn_fd = accept(listen_fd, (struct sockaddr *) &clientaddr, &clientaddr_len); // accept a request from a client
-        if (conn_fd == -1) {
+        conn_fd[i] = accept(listen_fd, (struct sockaddr *) &clientaddr, &clientaddr_len); // accept a request from a client
+        if (conn_fd[i] == -1) {
             perror("accept error");
+            continue;
         }
 
-        if (pthread_create(&thread, NULL, clientHandler, &conn_fd) != 0) {
+        if (pthread_create(&thread, NULL, clientHandler, &conn_fd[i]) != 0) {
             perror("Error creating client handler thread");
             continue;
         }
@@ -241,6 +244,8 @@ int main(int argc, char *argv[]) {
         if (pthread_detach(thread) != 0) {
             perror("Error detaching client handler thread");
         }
+
+        ++i;
     }
 
     // Release any resources
