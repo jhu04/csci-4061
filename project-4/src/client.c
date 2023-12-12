@@ -3,24 +3,79 @@
 #define PORT 5570
 #define BUFFER_SIZE 1024
 
+//TODO: needs error checking
 int send_file(int socket, const char *filename) {
     // Send the file data
+    char img_data[BUFFER_SIZE];
+    bzero(img_data, BUFFER_SIZE);
 
+    FILE *fp = fopen(filename, "r");
+    int i=0;
+    while(fread(img_data, sizeof(char), BUFFER_SIZE, fp) != 0){
+        //send img_data over network
+        fprintf(stdout, "Sending packet#%d to server\n", i);
+        send(socket, img_data, BUFFER_SIZE, 0);
+        i++;
+    }
 
     return 0;
 }
 
+//TODO: needs error checking
+//TODO: need to send processed file to output directory
 int receive_file(int socket, const char *filename) {
-    // Open the file
-    FILE *fp = fopen(filename, "w");
+    // Buffer to store processed image data
+    //TODO: Delete anything to do w/ array-like buffers & replace w/ temp_file implementations
+    //TODO: Unlink hard_links XP
 
-    // Receive response packet
+    char temp_filename[BUFFER_SIZE];
+    memset(temp_filename, '\0', BUFFER_SIZE * sizeof(char));
+    sprintf(temp_filename, "%lu.png", pthread_self());
+
+    FILE *temp = fopen(temp_filename, "a");
+
+
+    char buffer[BUFFER_SIZE];
+    bzero(buffer, BUFFER_SIZE);
+
     char recvdata[sizeof(packet_t)];
-    memset(recvdata, 0, sizeof(packet_t));
-//    int ret = recv(socket, )
-    // Receive the file data
+    memset(recvdata, '\0', sizeof(packet_t));
 
-    // Write the data to the file
+    unsigned int img_size;
+
+    int ret = recv(socket, recvdata, sizeof(packet_t), 0); // receive data from server
+    if(ret == -1) {
+        perror("recv error");
+        exit(-1);
+    }
+
+    // Deserialize the received data, check common.h and sample/client.c
+    packet_t *ackpacket = deserializeData(recvdata);
+    fprintf(stdout, "Received ackpacket with flag %d and image size %u\n", ackpacket->flags, ackpacket->size);
+    img_size = ackpacket->size;
+
+    ///////////////////////////////////////////////////////////////////////////
+    //char img_data[img_size];
+    //bzero(img_data, img_size);
+
+    unsigned int bytes_counted = 0;
+
+    while(bytes_counted < img_size){
+    	int ret = recv(socket, buffer, BUFFER_SIZE, 0);
+	if(ret == -1) {
+	    perror("recv error on img_data packets");
+	    exit(-1);
+	}
+        fprintf(stdout, "Received img_data packet#%d of size %d\n", ret/2, ret);
+
+	fwrite(buffer, sizeof(char), bytes_counted, temp);
+	//strcat(img_data, buffer);
+
+	bytes_counted += ret;
+    }
+
+    free(ackpacket);
+
     return 0;
 }
 
@@ -134,16 +189,18 @@ int main(int argc, char *argv[]) {
         packet_t packet = {IMG_OP_ROTATE, rotation_angle == 180 ? IMG_FLAG_ROTATE_180 : IMG_FLAG_ROTATE_270, htonl(input_file_size), NULL};
         char *serializedData = serializePacket(&packet);
 
-        int ret = send(sockfd, serializedData, sizeof(packet), 0);
+        int ret = send(sockfd, serializedData, sizeof(packet_t), 0);
         if (ret == -1) {
             perror("send error");
             exit(-1);
         }
 
+        
         // Send the image data to the server
         int send_ret = send_file(sockfd, queue[i].file_name);
 
-        //TODO : Check that the request was acknowledged
+        //TODO : Check that the packet was acknowledged IMG_OP_ACK or IMG_OP_NAK
+	//TODO: Code clean-up: Receiving the ack/nak packet already happens in receive_file
         char recvdata[sizeof(packet_t)];
         memset(recvdata, '\0', sizeof(packet_t));
         ret = recv(sockfd, recvdata, sizeof(packet_t), 0); // receive data from server
@@ -163,10 +220,10 @@ int main(int argc, char *argv[]) {
 //        strcat(output_path_buf, "/");
 //        strcat(output_path_buf, get_filename_from_path(queue[i].file_name));
 //
-//        int recv = receive_file(sockfd, output_path_buf);
+        int recv = receive_file(sockfd, output_path_buf);
+
 
         free(queue[i].file_name);
-        free(ackpacket);
         free(serializedData);
     }
 
@@ -174,7 +231,7 @@ int main(int argc, char *argv[]) {
 
     char *serializedData = serializePacket(&packet);
 
-    ret = send(sockfd, serializedData, sizeof(packet), 0);
+    ret = send(sockfd, serializedData, sizeof(packet_t), 0);
     if (ret == -1) {
         perror("send error");
         exit(-1);
