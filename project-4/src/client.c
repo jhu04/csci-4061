@@ -7,15 +7,17 @@
 int send_file(int socket, const char *filename) {
     // Send the file data
     char img_data[BUFFER_SIZE];
-    bzero(img_data, BUFFER_SIZE);
+    memset(img_data, '\0', BUFFER_SIZE * sizeof(char));
 
     FILE *fp = fopen(filename, "r");
-    int i=0;
+    if (fp == NULL) {
+        perror("Failed to open file");
+        exit(-1);
+    }
+
     while(fread(img_data, sizeof(char), BUFFER_SIZE, fp) != 0){
-        //send img_data over network
-        fprintf(stdout, "Sending packet#%d to server\n", i);
         send(socket, img_data, BUFFER_SIZE, 0);
-        i++;
+        memset(img_data, '\0', BUFFER_SIZE * sizeof(char));
     }
 
     return 0;
@@ -27,21 +29,11 @@ int receive_file(int socket, const char *filename) {
     // Buffer to store processed image data
     //TODO: Delete anything to do w/ array-like buffers & replace w/ temp_file implementations
     //TODO: Unlink hard_links XP
-
-    char temp_filename[BUFFER_SIZE];
-    memset(temp_filename, '\0', BUFFER_SIZE * sizeof(char));
-    sprintf(temp_filename, "%lu.png", pthread_self());
-
-    FILE *temp = fopen(temp_filename, "a");
-
-
-    char buffer[BUFFER_SIZE];
-    bzero(buffer, BUFFER_SIZE);
+    char img_data_buf[BUFFER_SIZE];
+    memset(img_data_buf, '\0', BUFFER_SIZE * sizeof(char));
 
     char recvdata[sizeof(packet_t)];
     memset(recvdata, '\0', sizeof(packet_t));
-
-    unsigned int img_size;
 
     int ret = recv(socket, recvdata, sizeof(packet_t), 0); // receive data from server
     if(ret == -1) {
@@ -51,28 +43,28 @@ int receive_file(int socket, const char *filename) {
 
     // Deserialize the received data, check common.h and sample/client.c
     packet_t *ackpacket = deserializeData(recvdata);
-    fprintf(stdout, "Received ackpacket with flag %d and image size %u\n", ackpacket->flags, ackpacket->size);
-    img_size = ackpacket->size;
+    int operation = ackpacket->operation;
+    long int size = ntohl(ackpacket->size);
 
     ///////////////////////////////////////////////////////////////////////////
-    //char img_data[img_size];
-    //bzero(img_data, img_size);
+    FILE *fp = fopen(filename, "w");
+    int i = 0;
+    while (i < size) {
+        memset(img_data_buf, '\0', BUFFER_SIZE);
+        
+        int bytes_added = recv(socket, img_data_buf, BUFFER_SIZE, 0);
 
-    unsigned int bytes_counted = 0;
+        if(ret == -1) {
+            perror("recv error on img_data packets");
+            exit(-1);
+        }
+        
+        fwrite(img_data_buf, sizeof(char), bytes_added, fp);
 
-    while(bytes_counted < img_size){
-    	int ret = recv(socket, buffer, BUFFER_SIZE, 0);
-	if(ret == -1) {
-	    perror("recv error on img_data packets");
-	    exit(-1);
-	}
-        fprintf(stdout, "Received img_data packet#%d of size %d\n", ret/2, ret);
-
-	fwrite(buffer, sizeof(char), bytes_counted, temp);
-	//strcat(img_data, buffer);
-
-	bytes_counted += ret;
+        i += bytes_added;
     }
+
+    fclose(fp);
 
     free(ackpacket);
 
@@ -135,12 +127,6 @@ int main(int argc, char *argv[]) {
 
             queue[queue_size] = (request_t) {.rotation_angle = rotation_angle, .file_name = path_buf};
             queue_size++;
-
-            // prints queue for debugging purposes
-            for (int i = 0; i < queue_size; ++i) {
-                printf("queue[%d].filename = %s\n", i, queue[i].file_name);
-            }
-            printf("\n");
         }
     }
 
@@ -150,9 +136,6 @@ int main(int argc, char *argv[]) {
     }
 
     char *output_path_buf = malloc(BUFFER_SIZE * sizeof(char));
-
-    // TODO: modify queue instead of looping over
-    fprintf(stdout, "Queue size %d\n", queue_size);
 
     for (int i = 0; i < queue_size; i++) {
         // Open the file using filepath from filename
@@ -194,34 +177,21 @@ int main(int argc, char *argv[]) {
             perror("send error");
             exit(-1);
         }
-
         
         // Send the image data to the server
-        int send_ret = send_file(sockfd, queue[i].file_name);
+        // TODO: check if return value is not 0, error handle
+        send_file(sockfd, queue[i].file_name);
 
         //TODO : Check that the packet was acknowledged IMG_OP_ACK or IMG_OP_NAK
-	//TODO: Code clean-up: Receiving the ack/nak packet already happens in receive_file
-        char recvdata[sizeof(packet_t)];
-        memset(recvdata, '\0', sizeof(packet_t));
-        ret = recv(sockfd, recvdata, sizeof(packet_t), 0); // receive data from server
-        if(ret == -1) {
-            perror("recv error");
-            exit(-1);
-        }
-
-        // Deserialize the received data, check common.h and sample/client.c
-        packet_t *ackpacket = deserializeData(recvdata);
-
-        fprintf(stdout, "Received ackpacket with flag %d\n", ackpacket->flags);
-
+        //TODO: Code clean-up: Receiving the ack/nak packet already happens in receive_file
+        
         // Receive the processed image and save it in the output dir
-//        memset(output_path_buf, '\0', BUFFER_SIZE * sizeof(char));
-//        strcpy(output_path_buf, output_directory);
-//        strcat(output_path_buf, "/");
-//        strcat(output_path_buf, get_filename_from_path(queue[i].file_name));
-//
-        int recv = receive_file(sockfd, output_path_buf);
+        memset(output_path_buf, '\0', BUFFER_SIZE * sizeof(char));
+        strcpy(output_path_buf, output_directory);
+        strcat(output_path_buf, "/");
+        strcat(output_path_buf, get_filename_from_path(queue[i].file_name));
 
+        receive_file(sockfd, output_path_buf);
 
         free(queue[i].file_name);
         free(serializedData);
