@@ -1,6 +1,6 @@
 #include "server.h"
 
-#define PORT 5570
+#define PORT 5571
 #define MAX_CLIENTS 5
 #define BUFFER_SIZE 1024
 
@@ -15,7 +15,6 @@ void *clientHandler(void *socket) {
         memset(recvdata, 0, sizeof(packet_t));
 
         int ret = recv(conn_fd, recvdata, sizeof(packet_t), 0); // receive first packet from client
-
         if (ret == -1) {
             perror("recv error");
             pthread_exit(NULL);
@@ -27,8 +26,6 @@ void *clientHandler(void *socket) {
         int flags = recvpacket->flags;
         long int size = ntohl(recvpacket->size);
 
-        free(recvpacket);
-
         if (operation == IMG_OP_EXIT) {
             break;
         }
@@ -36,12 +33,15 @@ void *clientHandler(void *socket) {
         //Nested loop is receiving packets for incoming image data. This data is combined into the img_data buffer
         char temp_filename[BUFFER_SIZE];
         memset(temp_filename, '\0', BUFFER_SIZE * sizeof(char));
-        sprintf(temp_filename, "SERVER_%lu.png", pthread_self());
+        sprintf(temp_filename, "%lu.png", pthread_self());
 
         FILE *temp = fopen(temp_filename, "w");
 
         int i=0;
         char img_data_buf[BUFFER_SIZE];
+
+        SHA256_CTX *ctx = malloc(sizeof(SHA256_CTX));
+        sha256_init(ctx);
 
         while (i<size) {
             //Receiving individual chunks of the image data
@@ -55,11 +55,26 @@ void *clientHandler(void *socket) {
 
             //concat chunks into buffer
             fwrite(img_data_buf, sizeof(char), bytes_added, temp);
-            //strcat(img_data, img_data_buf); //TODO: Delete
+            sha256_update(ctx, img_data_buf, bytes_added);
+
             i+=bytes_added;
         }
 
         fclose(temp);
+
+        // checksum
+        BYTE hash[SHA256_BLOCK_SIZE];
+        sha256_final(ctx, hash);
+
+        for (int j = 0; j < SHA256_BLOCK_SIZE; ++j) {
+            if (hash[j] != recvpacket->checksum[j]) {
+                printf("BAD HASH\n");
+                break;
+            }
+        }
+        
+        free(recvpacket);
+
         //do img_processing
         
         /*
@@ -103,7 +118,7 @@ void *clientHandler(void *socket) {
         //You should be ready to call flip_left_to_right or flip_upside_down depends on the angle(Should just be 180 or 270)
         //both take image matrix from linear_to_image, and result_matrix to store data, and width and height.
         //Hint figure out which function you will call.
-        if (flags == IMG_FLAG_ROTATE_180) {
+        if ((flags & IMG_FLAG_ROTATE_180) != 0) {
             flip_left_to_right(img_matrix, result_matrix, width, height);
         } else {
             flip_upside_down(img_matrix, result_matrix, width, height);
@@ -131,8 +146,6 @@ void *clientHandler(void *socket) {
                        width * CHANNEL_NUM);
 
         // Acknowledge the request (send ACK packet)
-        // fflush(stdout);
-
         temp = fopen(temp_filename, "r");
         if (temp == NULL) {
             perror("Failed to open file");

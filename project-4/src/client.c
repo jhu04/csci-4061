@@ -1,6 +1,6 @@
 #include "client.h"
 
-#define PORT 5570
+#define PORT 5571
 #define BUFFER_SIZE 1024
 
 //TODO: needs error checking
@@ -163,14 +163,31 @@ int main(int argc, char *argv[]) {
             exit(-1);
         }
 
-        // Setup checksum placeholder
-        unsigned char checksum_placeholder[SHA256_BLOCK_SIZE];
-        memset(checksum_placeholder, '\0', SHA256_BLOCK_SIZE * sizeof(char));
+        fp = fopen(queue[i].file_name, "r");
+        if (fp == NULL) {
+            perror("Failed to open file");
+            exit(-1);
+        }
+        
+        SHA256_CTX *ctx = malloc(sizeof(SHA256_CTX));
+        sha256_init(ctx);
+        
+        char img_data[input_file_size];
+        memset(img_data, '\0', input_file_size * sizeof(char));
 
-        // TODO: checksum_placeholder
+        int bytes; // TODO: error check fread
+        while((bytes = fread(img_data, sizeof(char), input_file_size, fp)) != 0){
+            sha256_update(ctx, img_data, bytes);
+            memset(img_data, '\0', bytes * sizeof(char));
+        }
+
+        BYTE hash[SHA256_BLOCK_SIZE];
+        sha256_final(ctx, hash);
 
         // Set up the request packet for the server and send it
-        packet_t packet = {IMG_OP_ROTATE, rotation_angle == 180 ? IMG_FLAG_ROTATE_180 : IMG_FLAG_ROTATE_270, htonl(input_file_size), NULL};
+        packet_t packet = {.operation = IMG_OP_ROTATE, .flags = (rotation_angle == 180 ? IMG_FLAG_ROTATE_180 : IMG_FLAG_ROTATE_270) | IMG_FLAG_CHECKSUM, .size = htonl(input_file_size)};
+        memcpy(packet.checksum, hash, SHA256_BLOCK_SIZE);
+
         char *serializedData = serializePacket(&packet);
 
         int ret = send(sockfd, serializedData, sizeof(packet_t), 0);

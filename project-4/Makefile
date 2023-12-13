@@ -5,13 +5,16 @@ SRCDIR=src
 INCDIR=include
 LIBDIR=lib
 
+OBJS = utils.o sha256.o
+LOBJS = $(addprefix $(LIBDIR)/, $(OBJS))
+
 all: outdir $(LIBDIR)/utils.o server client
 
-server: $(LIBDIR)/utils.o $(INCDIR)/utils.h $(SRCDIR)/server.c
-	$(CC) $(CFLAGS) -I$(INCDIR) -o $@ $(LIBDIR)/utils.o $(SRCDIR)/server.c -lm
+server: $(LOBJS) $(INCDIR)/utils.h $(SRCDIR)/server.c
+	$(CC) $(CFLAGS) -I$(INCDIR) -o $@ $(LOBJS) $(SRCDIR)/server.c -lm
 
-client: $(LIBDIR)/utils.o $(INCDIR)/utils.h $(SRCDIR)/client.c
-	$(CC) $(CFLAGS) -I$(INCDIR) -o $@ $(LIBDIR)/utils.o $(SRCDIR)/client.c -lm
+client: $(LOBJS) $(INCDIR)/utils.h $(SRCDIR)/client.c
+	$(CC) $(CFLAGS) -I$(INCDIR) -o $@ $(LOBJS) $(SRCDIR)/client.c -lm
 	
 .PHONY: clean outdir
 
