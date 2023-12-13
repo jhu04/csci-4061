@@ -15,9 +15,10 @@ int send_file(int socket, const char *filename) {
         exit(-1);
     }
 
-    while(fread(img_data, sizeof(char), BUFFER_SIZE, fp) != 0){
-        send(socket, img_data, BUFFER_SIZE, 0);
-        memset(img_data, '\0', BUFFER_SIZE * sizeof(char));
+    int bytes; // TODO: error check fread
+    while((bytes = fread(img_data, sizeof(char), BUFFER_SIZE, fp)) != 0){
+        send(socket, img_data, bytes, 0);
+        memset(img_data, '\0', bytes * sizeof(char));
     }
 
     return 0;

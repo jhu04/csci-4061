@@ -175,9 +175,10 @@ void *clientHandler(void *socket) {
         memset(img_data_buf, '\0', BUFFER_SIZE);
 
         temp = fopen(temp_filename, "r");
-        while(fread(img_data_buf, sizeof(char), BUFFER_SIZE, temp) != 0) {
-            send(conn_fd, img_data_buf, BUFFER_SIZE, 0);
-            memset(img_data_buf, '\0', BUFFER_SIZE);
+        int bytes; // TODO: error check fread
+        while((bytes = fread(img_data_buf, sizeof(char), BUFFER_SIZE, temp)) != 0) {
+            send(conn_fd, img_data_buf, bytes, 0);
+            memset(img_data_buf, '\0', bytes * sizeof(char));
         }
 
         fclose(temp);
