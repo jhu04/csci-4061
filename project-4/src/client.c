@@ -3,7 +3,7 @@
 #define PORT 5571
 #define BUFFER_SIZE 1024
 
-//TODO: needs error checking
+
 int send_file(int socket, const char *filename) {
     // Send the file data
     char img_data[BUFFER_SIZE];
@@ -15,21 +15,31 @@ int send_file(int socket, const char *filename) {
         exit(-1);
     }
 
-    int bytes; // TODO: error check fread
+    int bytes;
+    int last_sent = 0;
     while((bytes = fread(img_data, sizeof(char), BUFFER_SIZE, fp)) != 0){
-        send(socket, img_data, bytes, 0);
-        memset(img_data, '\0', bytes * sizeof(char));
+        int sent = send(socket, img_data, bytes, 0);
+        if(sent == -1 || sent != bytes){
+               perror("Failed to send bytes");
+              exit(-1);
+        }
+         
+        // while(int sent = send(socket, img_data, bytes, 0) != bytes-last_sent){
+        //     if(sent == -1){
+        //         perror("Failed to send bytes");
+        //         exit(-1);
+        //     }
+        //     last_sent = sent;
+        //     memset(img_data, '\0', bytes * sizeof(char));
+        // }
     }
 
     return 0;
 }
 
-//TODO: needs error checking
-//TODO: need to send processed file to output directory
+
 int receive_file(int socket, const char *filename) {
     // Buffer to store processed image data
-    //TODO: Delete anything to do w/ array-like buffers & replace w/ temp_file implementations
-    //TODO: Unlink hard_links XP
     char img_data_buf[BUFFER_SIZE];
     memset(img_data_buf, '\0', BUFFER_SIZE * sizeof(char));
 
@@ -47,25 +57,36 @@ int receive_file(int socket, const char *filename) {
     int operation = ackpacket->operation;
     long int size = ntohl(ackpacket->size);
 
-    ///////////////////////////////////////////////////////////////////////////
     FILE *fp = fopen(filename, "w");
+    if(fp == NULL){
+        perror("Failed to open file");
+        exit(-1);
+    }
+        
     int i = 0;
     while (i < size) {
         memset(img_data_buf, '\0', BUFFER_SIZE);
         
         int bytes_added = recv(socket, img_data_buf, BUFFER_SIZE, 0);
 
-        if(ret == -1) {
+        if(bytes_added == -1) {
             perror("recv error on img_data packets");
             exit(-1);
         }
         
-        fwrite(img_data_buf, sizeof(char), bytes_added, fp);
+        int bytes_written = fwrite(img_data_buf, sizeof(char), bytes_added, fp);
+        if(bytes_written != bytes_added){
+            perror("Failed to write all bytes to file");
+            exit(-1);
+        }
 
         i += bytes_added;
     }
 
-    fclose(fp);
+    if(fclose(fp) != 0){
+        perror("Failed to close file");
+        exit(-1);
+    }
 
     free(ackpacket);
 
@@ -197,8 +218,10 @@ int main(int argc, char *argv[]) {
         }
         
         // Send the image data to the server
-        // TODO: check if return value is not 0, error handle
-        send_file(sockfd, queue[i].file_name);
+        if(send_file(sockfd, queue[i].file_name) != 0){
+            perror("Failed call to send_file");
+            exit(-1);
+        }
 
         //TODO : Check that the packet was acknowledged IMG_OP_ACK or IMG_OP_NAK
         //TODO: Code clean-up: Receiving the ack/nak packet already happens in receive_file
@@ -209,7 +232,10 @@ int main(int argc, char *argv[]) {
         strcat(output_path_buf, "/");
         strcat(output_path_buf, get_filename_from_path(queue[i].file_name));
 
-        receive_file(sockfd, output_path_buf);
+        if(receive_file(sockfd, output_path_buf) != 0){
+            perror("Failed call to receive_file");
+            exit(-1);
+        }
 
         free(queue[i].file_name);
         free(serializedData);
@@ -226,7 +252,10 @@ int main(int argc, char *argv[]) {
     }
 
     // Terminate the connection once all images have been processed
-    close(sockfd);
+    if(close(sockfd) == -1){
+        perror("Failed to close the socket");
+        exit(-1);
+    }
 
     // Release any resources
     free(output_path_buf);

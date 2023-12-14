@@ -36,6 +36,10 @@ void *clientHandler(void *socket) {
         sprintf(temp_filename, "%lu.png", pthread_self());
 
         FILE *temp = fopen(temp_filename, "w");
+        if(temp == NULL){
+            perror("Failed to open file");
+            exit(-1);
+        }
 
         int i=0;
         char img_data_buf[BUFFER_SIZE];
@@ -54,13 +58,21 @@ void *clientHandler(void *socket) {
             }
 
             //concat chunks into buffer
-            fwrite(img_data_buf, sizeof(char), bytes_added, temp);
+            int written = fwrite(img_data_buf, sizeof(char), bytes_added, temp);
+            if(written != bytes_added){
+                perror("Failed to write all bytes to file");
+                exit(-1);
+            }
             sha256_update(ctx, img_data_buf, bytes_added);
 
             i+=bytes_added;
         }
 
-        fclose(temp);
+        int ret = fclose(temp);
+        if(ret != 0){
+            perror("Failed to close file");
+            exit(-1);
+        }
 
         // checksum
         BYTE hash[SHA256_BLOCK_SIZE];
@@ -188,20 +200,32 @@ void *clientHandler(void *socket) {
         memset(img_data_buf, '\0', BUFFER_SIZE);
 
         temp = fopen(temp_filename, "r");
-        int bytes; // TODO: error check fread
+        if(temp == NULL){
+            perror("Failed to open file");
+            exit(-1);
+        }
+        int bytes;
         while((bytes = fread(img_data_buf, sizeof(char), BUFFER_SIZE, temp)) != 0) {
             send(conn_fd, img_data_buf, bytes, 0);
             memset(img_data_buf, '\0', bytes * sizeof(char));
         }
 
-        fclose(temp);
+        if(fclose(temp) !=0){
+            perror("Failed to close file");
+            exit(-1);
+        }
 
-        // TODO: error check
-        remove(temp_filename);
+        if(remove(temp_filename) == -1){
+            perror("Failed to remove file");
+            exit(-1);
+        };
     }
 
 
-    close(conn_fd);
+    if(close(conn_fd) == -1){
+        perror("Failed to close conn_fd");
+        exit(-1);
+    }
 }
 
 int main(int argc, char *argv[]) {
