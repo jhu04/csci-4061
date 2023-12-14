@@ -17,7 +17,6 @@ int send_file(int socket, const char *filename)
     }
 
     int bytes;
-    int last_sent = 0;
     while ((bytes = fread(img_data, sizeof(char), BUFFER_SIZE, fp)) != 0)
     {
 
@@ -47,8 +46,7 @@ int receive_file(int socket, const char *filename)
     char recvdata[sizeof(packet_t)];
     memset(recvdata, '\0', sizeof(packet_t));
 
-    int ret = recv(socket, recvdata, sizeof(packet_t), 0); // receive data from server
-    if (ret == -1)
+    if (recv(socket, recvdata, sizeof(packet_t), 0) == -1) // receive data from server
     {
         perror("recv error");
         exit(-1);
@@ -119,7 +117,7 @@ int receive_file(int socket, const char *filename)
         {
             if (hash[j] != ackpacket->checksum[j])
             {
-                printf("BAD HASH\n");
+                fprintf(stderr, "Failed checksum\n");
                 break;
             }
         }
@@ -159,8 +157,7 @@ int main(int argc, char *argv[])
     servaddr.sin_addr.s_addr = inet_addr("127.0.0.1");
     servaddr.sin_port = htons(PORT);
 
-    int ret = connect(sockfd, (struct sockaddr *)&servaddr, sizeof(servaddr));
-    if (ret == -1)
+    if (connect(sockfd, (struct sockaddr *)&servaddr, sizeof(servaddr)) == -1)
     {
         perror("connect error");
         exit(-1);
@@ -278,8 +275,7 @@ int main(int argc, char *argv[])
 
         char *serializedData = serializePacket(&packet);
 
-        int ret = send(sockfd, serializedData, sizeof(packet_t), 0);
-        if (ret == -1)
+        if (send(sockfd, serializedData, sizeof(packet_t), 0) == -1)
         {
             perror("send error");
             exit(-1);
@@ -314,9 +310,7 @@ int main(int argc, char *argv[])
     packet_t packet = {.operation = IMG_OP_EXIT, .flags = 0, .size = 0};
 
     char *serializedData = serializePacket(&packet);
-
-    ret = send(sockfd, serializedData, sizeof(packet_t), 0);
-    if (ret == -1)
+    if (send(sockfd, serializedData, sizeof(packet_t), 0) == -1)
     {
         perror("send error");
         exit(-1);

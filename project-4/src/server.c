@@ -9,7 +9,7 @@ void *clientHandler(void *socket)
     int conn_fd = *(int *)socket;
 
     //This outer while loop iterates for every image the client sends to the be processed
-    while (1)
+    while (true)
     {
         //make initial recv call to get the first packet
         //Basically, obtain metadata about incoming image data
@@ -90,7 +90,7 @@ void *clientHandler(void *socket)
             {
                 if (hash[j] != recvpacket->checksum[j])
                 {
-                    printf("BAD HASH\n");
+                    fprintf(stderr, "Failed checksum\n");
                     break;
                 }
             }
@@ -98,20 +98,7 @@ void *clientHandler(void *socket)
 
         free(recvpacket);
 
-        //do img_processing
-
-        /*
-            TODO:
-            Need to send IMG_OP_NAK packet if smth wrong occurs in any of these functions below:
-                stbi_load_from_memory --> returns NULL on error
-                linear_to_image x
-                flip_left_to_right x
-                flip_upside_down x
-                flatten_mat x
-
-                Find out what they return (to check in a conditional)
-                Then write code to send serialized NAK packet over the network (same as the received packet but change to NAK)
-        */
+        // Image processing
 
         /*
             Stbi_load takes:
@@ -121,7 +108,6 @@ void *clientHandler(void *socket)
         int width = 0;
         int height = 0;
         int bpp = 0;
-        int sendNAK = 0;
 
         uint8_t *image_result = stbi_load(temp_filename, &width, &height, &bpp, CHANNEL_NUM); //stbi_load_from_memory(img_data, size, &width, &height, &bpp, CHANNEL_NUM);
         if (image_result == NULL)
@@ -282,7 +268,12 @@ void *clientHandler(void *socket)
                 perror("Failed to read image file into buffer");
                 exit(-1);
             }
-            send(conn_fd, img_data_buf, bytes, 0);
+
+            if (send(conn_fd, img_data_buf, bytes, 0) == -1)
+            {
+                perror("send error");
+                exit(-1);
+            }
             memset(img_data_buf, '\0', bytes * sizeof(char));
         }
 
