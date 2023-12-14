@@ -16,8 +16,7 @@ void *clientHandler(void *socket)
         char recvdata[sizeof(packet_t)];
         memset(recvdata, '\0', sizeof(packet_t));
 
-        int ret = recv(conn_fd, recvdata, sizeof(packet_t), 0); // receive first packet from client
-        if (ret == -1)
+        if (recv(conn_fd, recvdata, sizeof(packet_t), 0) == -1) // receive first packet from client
         {
             perror("recv error");
             pthread_exit(NULL);
@@ -49,16 +48,15 @@ void *clientHandler(void *socket)
         int i = 0;
         char img_data_buf[BUFFER_SIZE];
 
-        SHA256_CTX *ctx = malloc(sizeof(SHA256_CTX));
-        sha256_init(ctx);
+        SHA256_CTX ctx;
+        sha256_init(&ctx);
 
         while (i < size)
         {
             //Receiving individual chunks of the image data
             memset(img_data_buf, '\0', BUFFER_SIZE);
             int bytes_added = recv(conn_fd, img_data_buf, BUFFER_SIZE, 0);
-
-            if (ret == -1)
+            if (bytes_added == -1)
             {
                 perror("recv error");
                 pthread_exit(NULL);
@@ -71,13 +69,12 @@ void *clientHandler(void *socket)
                 perror("Failed to write all bytes to file");
                 exit(-1);
             }
-            sha256_update(ctx, img_data_buf, bytes_added);
+            sha256_update(&ctx, img_data_buf, bytes_added);
 
             i += bytes_added;
         }
 
-        ret = fclose(temp);
-        if (ret != 0)
+        if (fclose(temp) != 0)
         {
             perror("Failed to close file");
             exit(-1);
@@ -85,14 +82,17 @@ void *clientHandler(void *socket)
 
         // checksum
         BYTE hash[SHA256_BLOCK_SIZE];
-        sha256_final(ctx, hash);
-
-        for (int j = 0; j < SHA256_BLOCK_SIZE; ++j)
+        if ((flags & IMG_FLAG_CHECKSUM) != 0)
         {
-            if (hash[j] != recvpacket->checksum[j])
+            sha256_final(&ctx, hash);
+
+            for (int j = 0; j < SHA256_BLOCK_SIZE; ++j)
             {
-                printf("BAD HASH\n");
-                break;
+                if (hash[j] != recvpacket->checksum[j])
+                {
+                    printf("BAD HASH\n");
+                    break;
+                }
             }
         }
 
@@ -130,9 +130,7 @@ void *clientHandler(void *socket)
             memcpy(NAKpkt.checksum, recvpacket->checksum, SHA256_BLOCK_SIZE);
 
             char *serializedNAK = serializePacket(&NAKpkt);
-
-            ret = send(conn_fd, serializedNAK, sizeof(packet_t), 0);
-            if (ret == -1)
+            if (send(conn_fd, serializedNAK, sizeof(packet_t), 0) == -1)
             {
                 perror("send error");
                 exit(-1);
@@ -219,10 +217,44 @@ void *clientHandler(void *socket)
             exit(-1);
         }
 
-        packet_t packet = {IMG_OP_ACK, flags, htonl(file_size), NULL};
+        temp = fopen(temp_filename, "r");
+        if (temp == NULL)
+        {
+            perror("Failed to open file");
+            exit(-1);
+        }
+        
+        sha256_init(&ctx);
+
+        char img_data[file_size];
+        memset(img_data, '\0', file_size * sizeof(char));
+
+        int bytes;
+        while ((bytes = fread(img_data, sizeof(char), file_size, temp)) != 0)
+        {
+            if (bytes == -1)
+            {
+                perror("Failed to read file");
+                exit(-1);
+            }
+
+            sha256_update(&ctx, img_data, bytes);
+            memset(img_data, '\0', bytes * sizeof(char));
+        }
+
+        if (fclose(temp) != 0)
+        {
+            perror("Failed to close file");
+            exit(-1);
+        }
+
+        sha256_final(&ctx, hash);
+
+        packet_t packet = {.operation = IMG_OP_ACK, .flags = flags, .size = htonl(file_size)};
+        memcpy(packet.checksum, hash, SHA256_BLOCK_SIZE);
+
         char *serializedData = serializePacket(&packet);
-        ret = send(conn_fd, serializedData, sizeof(packet_t), 0); // send message to client
-        if (ret == -1)
+        if (send(conn_fd, serializedData, sizeof(packet_t), 0) == -1) // send message to client
         {
             perror("send error");
             pthread_exit(NULL);
@@ -242,7 +274,7 @@ void *clientHandler(void *socket)
             perror("Failed to open file");
             exit(-1);
         }
-        int bytes;
+
         while ((bytes = fread(img_data_buf, sizeof(char), BUFFER_SIZE, temp)) != 0)
         {
             if (bytes == -1)
@@ -291,24 +323,20 @@ int main(int argc, char *argv[])
     servaddr.sin_addr.s_addr = htonl(INADDR_ANY); // Listen to any of the network interface (INADDR_ANY)
     servaddr.sin_port = htons(PORT);              // Port number
 
-    int ret = bind(listen_fd, (struct sockaddr *)&servaddr, sizeof(servaddr)); // bind address, port to socket
-    if (ret == -1)
+    if (bind(listen_fd, (struct sockaddr *)&servaddr, sizeof(servaddr)) == -1) // bind address, port to socket
     {
         perror("bind error");
         exit(-1);
     }
 
     // Listen on the socket (does this run endlessly?)
-    ret = listen(listen_fd, MAX_CLIENTS); // listen on the listen_fd
-    if (ret == -1)
+    if (listen(listen_fd, MAX_CLIENTS) == -1) // listen on the listen_fd
     {
         perror("listen error");
         exit(-1);
     }
 
     // Accept connections and create the client handling threads
-    // TODO: how to handle multiple connections?
-    // Array of connections?
     pthread_t thread;
 
     int conn_fd[1024];
@@ -316,7 +344,6 @@ int main(int argc, char *argv[])
 
     while (true)
     {
-        // Can we just put connection in here?
         struct sockaddr_in clientaddr;
         socklen_t clientaddr_len = sizeof(clientaddr);
         conn_fd[i] = accept(listen_fd, (struct sockaddr *)&clientaddr, &clientaddr_len); // accept a request from a client

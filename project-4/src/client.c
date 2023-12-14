@@ -57,6 +57,7 @@ int receive_file(int socket, const char *filename)
     // Deserialize the received data, check common.h and sample/client.c
     packet_t *ackpacket = deserializeData(recvdata);
     int operation = ackpacket->operation;
+    int flags = ackpacket->flags;
     long int size = ntohl(ackpacket->size);
 
     //Received NAK Packet, no further action taken
@@ -75,12 +76,15 @@ int receive_file(int socket, const char *filename)
     }
 
     int i = 0;
+
+    SHA256_CTX *ctx = malloc(sizeof(SHA256_CTX));
+    sha256_init(ctx);
+
     while (i < size)
     {
         memset(img_data_buf, '\0', BUFFER_SIZE);
 
         int bytes_added = recv(socket, img_data_buf, BUFFER_SIZE, 0);
-
         if (bytes_added == -1)
         {
             perror("recv error on img_data packets");
@@ -94,6 +98,8 @@ int receive_file(int socket, const char *filename)
             exit(-1);
         }
 
+        sha256_update(ctx, img_data_buf, bytes_added);
+
         i += bytes_added;
     }
 
@@ -101,6 +107,22 @@ int receive_file(int socket, const char *filename)
     {
         perror("Failed to close file");
         exit(-1);
+    }
+
+    // checksum
+    if ((flags & IMG_FLAG_CHECKSUM) != 0)
+    {
+        BYTE hash[SHA256_BLOCK_SIZE];
+        sha256_final(ctx, hash);
+
+        for (int j = 0; j < SHA256_BLOCK_SIZE; ++j)
+        {
+            if (hash[j] != ackpacket->checksum[j])
+            {
+                printf("BAD HASH\n");
+                break;
+            }
+        }
     }
 
     free(ackpacket);
@@ -182,7 +204,7 @@ int main(int argc, char *argv[])
         exit(-1);
     }
 
-    char *output_path_buf = malloc(BUFFER_SIZE * sizeof(char));
+    char output_path_buf[BUFFER_SIZE];
 
     //Send each image file from the queue to server for processing, and then receive results --> put into output directory
     for (int i = 0; i < queue_size; i++)
@@ -222,8 +244,8 @@ int main(int argc, char *argv[])
             exit(-1);
         }
 
-        SHA256_CTX *ctx = malloc(sizeof(SHA256_CTX));
-        sha256_init(ctx);
+        SHA256_CTX ctx;
+        sha256_init(&ctx);
 
         char img_data[input_file_size];
         memset(img_data, '\0', input_file_size * sizeof(char));
@@ -231,12 +253,24 @@ int main(int argc, char *argv[])
         int bytes; // TODO: error check fread
         while ((bytes = fread(img_data, sizeof(char), input_file_size, fp)) != 0)
         {
-            sha256_update(ctx, img_data, bytes);
+            if (bytes == -1)
+            {
+                perror("Failed to read file");
+                exit(-1);
+            }
+
+            sha256_update(&ctx, img_data, bytes);
             memset(img_data, '\0', bytes * sizeof(char));
         }
 
+        if (fclose(fp) != 0)
+        {
+            perror("Failed to close file");
+            exit(-1);
+        }
+
         BYTE hash[SHA256_BLOCK_SIZE];
-        sha256_final(ctx, hash);
+        sha256_final(&ctx, hash);
 
         // Set up the request packet for the server and send it
         packet_t packet = {.operation = IMG_OP_ROTATE, .flags = (rotation_angle == 180 ? IMG_FLAG_ROTATE_180 : IMG_FLAG_ROTATE_270) | IMG_FLAG_CHECKSUM, .size = htonl(input_file_size)};
@@ -277,7 +311,7 @@ int main(int argc, char *argv[])
         free(serializedData);
     }
 
-    packet_t packet = {IMG_OP_EXIT, rotation_angle == 180 ? IMG_FLAG_ROTATE_180 : IMG_FLAG_ROTATE_270, 0, NULL};
+    packet_t packet = {.operation = IMG_OP_EXIT, .flags = 0, .size = 0};
 
     char *serializedData = serializePacket(&packet);
 
@@ -296,7 +330,6 @@ int main(int argc, char *argv[])
     }
 
     // Release any resources
-    free(output_path_buf);
     free(serializedData);
 
     return 0;
