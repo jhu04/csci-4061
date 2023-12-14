@@ -274,7 +274,7 @@ int main(int argc, char *argv[])
         sha256_final(&ctx, hash);
 
         // Set up the request packet for the server and send it
-        packet_t packet = {.operation = IMG_OP_ROTATE, .flags = (rotation_angle == 180 ? IMG_FLAG_ROTATE_180 : IMG_FLAG_ROTATE_270) | IMG_FLAG_CHECKSUM, .size = htonl(input_file_size)};
+        packet_t packet = {.operation = IMG_OP_ROTATE, .flags = (rotation_angle == 180 ? IMG_FLAG_ROTATE_180 : IMG_FLAG_ROTATE_270) | IMG_FLAG_ENCRYPTED | IMG_FLAG_CHECKSUM, .size = htonl(input_file_size)};
         memcpy(packet.checksum, hash, SHA256_BLOCK_SIZE);
 
         char *serializedData = serializePacket(&packet);

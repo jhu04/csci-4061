@@ -240,7 +240,7 @@ void *clientHandler(void *socket)
 
         sha256_final(&ctx, hash);
 
-        packet_t packet = {.operation = IMG_OP_ACK, .flags = flags, .size = htonl(file_size)};
+        packet_t packet = {.operation = IMG_OP_ACK, .flags = flags | IMG_FLAG_ENCRYPTED | IMG_FLAG_CHECKSUM, .size = htonl(file_size)};
         memcpy(packet.checksum, hash, SHA256_BLOCK_SIZE);
 
         char *serializedData = serializePacket(&packet);
