@@ -82,15 +82,16 @@ packet_t *deserializeData(char *serializedData) {
     return packet;
 }
 
+// affine cipher
 void enc(char *s, int len) {
     for (int i = 0; i < len; ++i) {
-        ++s[i];
+        s[i] = (char) 53 * s[i] + (char) 41;
     }
 }
 
 void dec(char *s, int len) {
     for (int i = 0; i < len; ++i) {
-        --s[i];
+        s[i] = (char) 29 * (s[i] - (char) 41);
     }
 }
 

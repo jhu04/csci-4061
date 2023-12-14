@@ -251,7 +251,7 @@ int main(int argc, char *argv[])
         char img_data[input_file_size];
         memset(img_data, '\0', input_file_size * sizeof(char));
 
-        int bytes; // TODO: error check fread
+        int bytes;
         while ((bytes = fread(img_data, sizeof(char), input_file_size, fp)) != 0)
         {
             if (bytes == -1)
@@ -278,7 +278,6 @@ int main(int argc, char *argv[])
         memcpy(packet.checksum, hash, SHA256_BLOCK_SIZE);
 
         char *serializedData = serializePacket(&packet);
-
         if (send(sockfd, serializedData, sizeof(packet_t), 0) == -1)
         {
             perror("send error");
