@@ -1,6 +1,6 @@
 #include "server.h"
 
-#define PORT 5571
+#define PORT 5570
 #define MAX_CLIENTS 5
 #define BUFFER_SIZE 1024
 

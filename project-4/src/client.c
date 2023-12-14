@@ -1,6 +1,6 @@
 #include "client.h"
 
-#define PORT 5571
+#define PORT 5570
 #define BUFFER_SIZE 1024
 
 int send_file(int socket, const char *filename)
@@ -75,8 +75,8 @@ int receive_file(int socket, const char *filename)
         exit(-1);
     }
 
-    SHA256_CTX *ctx = malloc(sizeof(SHA256_CTX));
-    sha256_init(ctx);
+    SHA256_CTX ctx;
+    sha256_init(&ctx);
 
     for (int i = 0; i < size; )
     {
@@ -100,7 +100,7 @@ int receive_file(int socket, const char *filename)
             exit(-1);
         }
 
-        sha256_update(ctx, img_data_buf, bytes_added);
+        sha256_update(&ctx, img_data_buf, bytes_added);
 
         i += bytes_added;
     }
@@ -115,7 +115,7 @@ int receive_file(int socket, const char *filename)
     if ((flags & IMG_FLAG_CHECKSUM) != 0)
     {
         BYTE hash[SHA256_BLOCK_SIZE];
-        sha256_final(ctx, hash);
+        sha256_final(&ctx, hash);
 
         for (int j = 0; j < SHA256_BLOCK_SIZE; ++j)
         {
