@@ -20,7 +20,7 @@ Server Listening Thread:
 Opening a listening socket
 bind port # to it
 loop (listen --> accept connection and invoke client handling thread)
-
+In the loop after spawning client thread, detach it
 
 __Client Handling Thread__:
 Create Connection Socket
@@ -32,21 +32,19 @@ while True {
 
     if received a IMG_OP_EXIT packet
         break;
-    //else received a IMG_OP_ROTATE packet --> image processing on it
+    
+    otherwise, it's and IMG_OP_ROTATE packet (indicates image data packets incoming)
+    receive image data packets in a loop
 
     Image Processing
 
-    //Sending packets: if error occurs, create an IMG_OP_NAK packet and send it to client
-    //Sending packets: if successful, create an IMG_OP_ACK packet with processed image data and send to client
     if error occurs
         send IMG_OP_NAK packet
 
     send IMG_OP_ACK packet
+    read image file data into chunks of a byte stream and send to client in a loop
 }
 
 Close connection socket
 Clean-up
 
-//Main server thread doesn't need to intervene, this client handler just drops out
-pthread_detach() //release resources
-pthread_exit()
