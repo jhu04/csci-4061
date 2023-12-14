@@ -362,7 +362,7 @@ int main(int argc, char *argv[])
             perror("Error detaching client handler thread");
         }
 
-        ++i;
+        i = (i + 1) % 1024;
     }
 
     // Release any resources
