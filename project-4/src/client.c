@@ -20,21 +20,19 @@ int send_file(int socket, const char *filename)
     int last_sent = 0;
     while ((bytes = fread(img_data, sizeof(char), BUFFER_SIZE, fp)) != 0)
     {
+
+        if (bytes == -1)
+        {
+            perror("Failed to read image file into buffer");
+            exit(-1);
+        }
+
         int sent = send(socket, img_data, bytes, 0);
         if (sent == -1 || sent != bytes)
         {
             perror("Failed to send bytes");
             exit(-1);
         }
-
-        // while(int sent = send(socket, img_data, bytes, 0) != bytes-last_sent){
-        //     if(sent == -1){
-        //         perror("Failed to send bytes");
-        //         exit(-1);
-        //     }
-        //     last_sent = sent;
-        //     memset(img_data, '\0', bytes * sizeof(char));
-        // }
     }
 
     return 0;

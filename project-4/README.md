@@ -7,11 +7,15 @@ Group member names and x500s:
 
 The name of the CSELabs computer that you tested your code on: csel-kh1260-03.cselabs.umn.edu
 
-Any changes you made to the Makefile or existing files that would affect grading: N/A
+Any changes you made to the Makefile or existing files that would affect grading:
+OBJS = utils.o sha256.o
+LOBJS = $(addprefix $(LIBDIR)/, $(OBJS))
+
+These lines add sha256.o to server & client
 
 Plan outlining individual contributions for each member of your group:
 * We plan to meet on Zoom and have one person share their screen while the others assist by reviewing, looking up information in the writeup/documentation, etc.
-* Every 45 minutes, we will switch the screen sharer/typer. This should result in equal contributions for each member.
+* Every 1hr, we will switch the screen sharer/typer. This should result in equal contributions for each member.
 
 Plan on how you are going to construct the client handling thread and how
 you plan to send the package according to the protocol

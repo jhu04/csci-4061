@@ -245,6 +245,11 @@ void *clientHandler(void *socket)
         int bytes;
         while ((bytes = fread(img_data_buf, sizeof(char), BUFFER_SIZE, temp)) != 0)
         {
+            if (bytes == -1)
+            {
+                perror("Failed to read image file into buffer");
+                exit(-1);
+            }
             send(conn_fd, img_data_buf, bytes, 0);
             memset(img_data_buf, '\0', bytes * sizeof(char));
         }
