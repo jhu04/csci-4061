@@ -288,9 +288,6 @@ int main(int argc, char *argv[])
             exit(-1);
         }
 
-        //TODO : Check that the packet was acknowledged IMG_OP_ACK or IMG_OP_NAK
-        //TODO: Code clean-up: Receiving the ack/nak packet already happens in receive_file
-
         // Receive the processed image and save it in the output dir
         memset(output_path_buf, '\0', BUFFER_SIZE * sizeof(char));
         strcpy(output_path_buf, output_directory);
