@@ -3,27 +3,30 @@
 #define PORT 5571
 #define BUFFER_SIZE 1024
 
-
-int send_file(int socket, const char *filename) {
+int send_file(int socket, const char *filename)
+{
     // Send the file data
     char img_data[BUFFER_SIZE];
     memset(img_data, '\0', BUFFER_SIZE * sizeof(char));
 
     FILE *fp = fopen(filename, "r");
-    if (fp == NULL) {
+    if (fp == NULL)
+    {
         perror("Failed to open file");
         exit(-1);
     }
 
     int bytes;
     int last_sent = 0;
-    while((bytes = fread(img_data, sizeof(char), BUFFER_SIZE, fp)) != 0){
+    while ((bytes = fread(img_data, sizeof(char), BUFFER_SIZE, fp)) != 0)
+    {
         int sent = send(socket, img_data, bytes, 0);
-        if(sent == -1 || sent != bytes){
-               perror("Failed to send bytes");
-              exit(-1);
+        if (sent == -1 || sent != bytes)
+        {
+            perror("Failed to send bytes");
+            exit(-1);
         }
-         
+
         // while(int sent = send(socket, img_data, bytes, 0) != bytes-last_sent){
         //     if(sent == -1){
         //         perror("Failed to send bytes");
@@ -37,8 +40,8 @@ int send_file(int socket, const char *filename) {
     return 0;
 }
 
-
-int receive_file(int socket, const char *filename) {
+int receive_file(int socket, const char *filename)
+{
     // Buffer to store processed image data
     char img_data_buf[BUFFER_SIZE];
     memset(img_data_buf, '\0', BUFFER_SIZE * sizeof(char));
@@ -47,7 +50,8 @@ int receive_file(int socket, const char *filename) {
     memset(recvdata, '\0', sizeof(packet_t));
 
     int ret = recv(socket, recvdata, sizeof(packet_t), 0); // receive data from server
-    if(ret == -1) {
+    if (ret == -1)
+    {
         perror("recv error");
         exit(-1);
     }
@@ -57,25 +61,37 @@ int receive_file(int socket, const char *filename) {
     int operation = ackpacket->operation;
     long int size = ntohl(ackpacket->size);
 
+    //Received NAK Packet, no further action taken
+    if (operation == IMG_OP_NAK)
+    {
+        perror("Received a NAK packet");
+        free(ackpacket);
+        return -1;
+    }
+
     FILE *fp = fopen(filename, "w");
-    if(fp == NULL){
+    if (fp == NULL)
+    {
         perror("Failed to open file");
         exit(-1);
     }
-        
+
     int i = 0;
-    while (i < size) {
+    while (i < size)
+    {
         memset(img_data_buf, '\0', BUFFER_SIZE);
-        
+
         int bytes_added = recv(socket, img_data_buf, BUFFER_SIZE, 0);
 
-        if(bytes_added == -1) {
+        if (bytes_added == -1)
+        {
             perror("recv error on img_data packets");
             exit(-1);
         }
-        
+
         int bytes_written = fwrite(img_data_buf, sizeof(char), bytes_added, fp);
-        if(bytes_written != bytes_added){
+        if (bytes_written != bytes_added)
+        {
             perror("Failed to write all bytes to file");
             exit(-1);
         }
@@ -83,7 +99,8 @@ int receive_file(int socket, const char *filename) {
         i += bytes_added;
     }
 
-    if(fclose(fp) != 0){
+    if (fclose(fp) != 0)
+    {
         perror("Failed to close file");
         exit(-1);
     }
@@ -93,8 +110,10 @@ int receive_file(int socket, const char *filename) {
     return 0;
 }
 
-int main(int argc, char *argv[]) {
-    if (argc != 4) {
+int main(int argc, char *argv[])
+{
+    if (argc != 4)
+    {
         fprintf(stderr, "Usage: ./client File_Path_to_images File_Path_to_output_dir Rotation_angle. \n");
         return 1;
     }
@@ -108,7 +127,8 @@ int main(int argc, char *argv[]) {
 
     // Set up socket
     int sockfd = socket(AF_INET, SOCK_STREAM, 0);
-    if (sockfd == -1) {
+    if (sockfd == -1)
+    {
         perror("socket error");
         exit(-1);
     }
@@ -119,85 +139,100 @@ int main(int argc, char *argv[]) {
     servaddr.sin_addr.s_addr = inet_addr("127.0.0.1");
     servaddr.sin_port = htons(PORT);
 
-    int ret = connect(sockfd, (struct sockaddr *) &servaddr, sizeof(servaddr));
-    if (ret == -1) {
+    int ret = connect(sockfd, (struct sockaddr *)&servaddr, sizeof(servaddr));
+    if (ret == -1)
+    {
         perror("connect error");
         exit(-1);
     }
 
     // Read the directory for all the images to rotate
     DIR *directory = opendir(image_directory);
-    if (directory == NULL) {
+    if (directory == NULL)
+    {
         perror("Failed to open directory");
         exit(-1);
     }
 
+    //Directory traversal to add image files to queue
     struct dirent *entry;
-    while ((entry = readdir(directory)) != NULL) {
+    while ((entry = readdir(directory)) != NULL)
+    {
         char *entry_name = entry->d_name;
 
-        if (strcmp(entry_name, ".") == 0 || strcmp(entry_name, "..") == 0) {
+        if (strcmp(entry_name, ".") == 0 || strcmp(entry_name, "..") == 0)
+        {
             continue;
         }
 
-        if (entry->d_type == DT_REG) {
+        if (entry->d_type == DT_REG)
+        {
             char *path_buf = malloc(BUFFER_SIZE * sizeof(char));
             memset(path_buf, '\0', BUFFER_SIZE * sizeof(char));
             strcpy(path_buf, image_directory);
             strcat(path_buf, "/");
             strcat(path_buf, entry->d_name);
 
-            queue[queue_size] = (request_t) {.rotation_angle = rotation_angle, .file_name = path_buf};
+            queue[queue_size] = (request_t){.rotation_angle = rotation_angle, .file_name = path_buf};
             queue_size++;
         }
     }
 
-    if (closedir(directory) == -1) {
+    if (closedir(directory) == -1)
+    {
         perror("Failed to close directory");
         exit(-1);
     }
 
     char *output_path_buf = malloc(BUFFER_SIZE * sizeof(char));
 
-    for (int i = 0; i < queue_size; i++) {
+    //Send each image file from the queue to server for processing, and then receive results --> put into output directory
+    for (int i = 0; i < queue_size; i++)
+    {
         // Open the file using filepath from filename
         FILE *fp = fopen(queue[i].file_name, "r");
-        if (fp == NULL) {
+        if (fp == NULL)
+        {
             perror("Failed to open file");
             exit(-1);
         }
 
         // Find the file size
-        if (fseek(fp, 0, SEEK_END) == -1){ // Error check fseek
+        if (fseek(fp, 0, SEEK_END) == -1)
+        { // Error check fseek
             perror("Failed to move file offset to the end");
             exit(-1);
         }
 
         long int input_file_size = ftell(fp);
-        if(input_file_size == -1){ // Error check ftell
+        if (input_file_size == -1)
+        { // Error check ftell
             perror("Failed to determine position of file offset");
             exit(-1);
         }
 
-        if (fclose(fp) != 0) {
+        if (fclose(fp) != 0)
+        {
             perror("Failed to close file");
             exit(-1);
         }
 
         fp = fopen(queue[i].file_name, "r");
-        if (fp == NULL) {
+        if (fp == NULL)
+        {
             perror("Failed to open file");
             exit(-1);
         }
-        
+
         SHA256_CTX *ctx = malloc(sizeof(SHA256_CTX));
         sha256_init(ctx);
-        
+
         char img_data[input_file_size];
         memset(img_data, '\0', input_file_size * sizeof(char));
 
         int bytes; // TODO: error check fread
-        while((bytes = fread(img_data, sizeof(char), input_file_size, fp)) != 0){
+        while ((bytes = fread(img_data, sizeof(char), input_file_size, fp)) != 0)
+        {
             sha256_update(ctx, img_data, bytes);
             memset(img_data, '\0', bytes * sizeof(char));
         }
@@ -212,27 +247,30 @@ int main(int argc, char *argv[]) {
         char *serializedData = serializePacket(&packet);
 
         int ret = send(sockfd, serializedData, sizeof(packet_t), 0);
-        if (ret == -1) {
+        if (ret == -1)
+        {
             perror("send error");
             exit(-1);
         }
-        
+
         // Send the image data to the server
-        if(send_file(sockfd, queue[i].file_name) != 0){
+        if (send_file(sockfd, queue[i].file_name) != 0)
+        {
             perror("Failed call to send_file");
             exit(-1);
         }
 
         //TODO : Check that the packet was acknowledged IMG_OP_ACK or IMG_OP_NAK
         //TODO: Code clean-up: Receiving the ack/nak packet already happens in receive_file
-        
+
         // Receive the processed image and save it in the output dir
         memset(output_path_buf, '\0', BUFFER_SIZE * sizeof(char));
         strcpy(output_path_buf, output_directory);
         strcat(output_path_buf, "/");
         strcat(output_path_buf, get_filename_from_path(queue[i].file_name));
 
-        if(receive_file(sockfd, output_path_buf) != 0){
+        if (receive_file(sockfd, output_path_buf) != 0)
+        {
             perror("Failed call to receive_file");
             exit(-1);
         }
@@ -246,13 +284,15 @@ int main(int argc, char *argv[]) {
     char *serializedData = serializePacket(&packet);
 
     ret = send(sockfd, serializedData, sizeof(packet_t), 0);
-    if (ret == -1) {
+    if (ret == -1)
+    {
         perror("send error");
         exit(-1);
     }
 
     // Terminate the connection once all images have been processed
-    if(close(sockfd) == -1){
+    if (close(sockfd) == -1)
+    {
         perror("Failed to close the socket");
         exit(-1);
     }
@@ -260,6 +300,6 @@ int main(int argc, char *argv[]) {
     // Release any resources
     free(output_path_buf);
     free(serializedData);
-    
+
     return 0;
 }
