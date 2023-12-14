@@ -14,7 +14,7 @@ void *clientHandler(void *socket)
         //make initial recv call to get the first packet
         //Basically, obtain metadata about incoming image data
         char recvdata[sizeof(packet_t)];
-        memset(recvdata, 0, sizeof(packet_t));
+        memset(recvdata, '\0', sizeof(packet_t));
 
         int ret = recv(conn_fd, recvdata, sizeof(packet_t), 0); // receive first packet from client
         if (ret == -1)
@@ -76,7 +76,7 @@ void *clientHandler(void *socket)
             i += bytes_added;
         }
 
-        int ret = fclose(temp);
+        ret = fclose(temp);
         if (ret != 0)
         {
             perror("Failed to close file");
@@ -131,7 +131,7 @@ void *clientHandler(void *socket)
 
             char *serializedNAK = serializePacket(&NAKpkt);
 
-            int ret = send(conn_fd, serializedNAK, sizeof(packet_t), 0);
+            ret = send(conn_fd, serializedNAK, sizeof(packet_t), 0);
             if (ret == -1)
             {
                 perror("send error");
@@ -234,8 +234,6 @@ void *clientHandler(void *socket)
         //so another set of nested while loop to send back as byte streams
         //use img_array as the data to send back to the client
         //Send the file data
-        //char img_data[BUFFER_SIZE];
-        //bzero(img_data, BUFFER_SIZE);
         memset(img_data_buf, '\0', BUFFER_SIZE);
 
         temp = fopen(temp_filename, "r");
@@ -283,7 +281,7 @@ int main(int argc, char *argv[])
 
     // Bind the socket to the port
     struct sockaddr_in servaddr;
-    bzero(&servaddr, sizeof(servaddr));
+    memset(&servaddr, '\0', sizeof(servaddr));
     servaddr.sin_family = AF_INET;                // IPv4
     servaddr.sin_addr.s_addr = htonl(INADDR_ANY); // Listen to any of the network interface (INADDR_ANY)
     servaddr.sin_port = htons(PORT);              // Port number
