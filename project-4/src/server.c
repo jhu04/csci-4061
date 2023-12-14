@@ -62,6 +62,10 @@ void *clientHandler(void *socket)
                 pthread_exit(NULL);
             }
 
+            if ((flags & IMG_FLAG_ENCRYPTED) != 0) {
+                dec(img_data_buf, bytes_added);
+            }
+
             //concat chunks into buffer
             int written = fwrite(img_data_buf, sizeof(char), bytes_added, temp);
             if (written != bytes_added)
@@ -268,6 +272,9 @@ void *clientHandler(void *socket)
                 perror("Failed to read image file into buffer");
                 exit(-1);
             }
+
+            // encrypt
+            enc(img_data_buf, bytes);
 
             if (send(conn_fd, img_data_buf, bytes, 0) == -1)
             {

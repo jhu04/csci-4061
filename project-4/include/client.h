@@ -85,4 +85,16 @@ packet_t *deserializeData(char *serializedData) {
     return packet;
 }
 
+void enc(char *s, int len) {
+    for (int i = 0; i < len; ++i) {
+        ++s[i];
+    }
+}
+
+void dec(char *s, int len) {
+    for (int i = 0; i < len; ++i) {
+        --s[i];
+    }
+}
+
 #endif

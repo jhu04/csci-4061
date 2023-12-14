@@ -19,12 +19,14 @@ int send_file(int socket, const char *filename)
     int bytes;
     while ((bytes = fread(img_data, sizeof(char), BUFFER_SIZE, fp)) != 0)
     {
-
         if (bytes == -1)
         {
             perror("Failed to read image file into buffer");
             exit(-1);
         }
+
+        // encrypt
+        enc(img_data, bytes);
 
         int sent = send(socket, img_data, bytes, 0);
         if (sent == -1 || sent != bytes)
@@ -73,12 +75,10 @@ int receive_file(int socket, const char *filename)
         exit(-1);
     }
 
-    int i = 0;
-
     SHA256_CTX *ctx = malloc(sizeof(SHA256_CTX));
     sha256_init(ctx);
 
-    while (i < size)
+    for (int i = 0; i < size; )
     {
         memset(img_data_buf, '\0', BUFFER_SIZE);
 
@@ -87,6 +87,10 @@ int receive_file(int socket, const char *filename)
         {
             perror("recv error on img_data packets");
             exit(-1);
+        }
+
+        if ((flags & IMG_FLAG_ENCRYPTED) != 0) {
+            dec(img_data_buf, bytes_added);
         }
 
         int bytes_written = fwrite(img_data_buf, sizeof(char), bytes_added, fp);
